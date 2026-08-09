@@ -1,0 +1,47 @@
+{
+  "source_root": "/JAPAN4-DETR/JAPAN4-DETR",
+  "mapping": {
+    "1": 0,
+    "2": 1,
+    "3": 2,
+    "4": 3
+  },
+  "splits": {
+    "train": {
+      "images": 6320,
+      "annotations": 13175,
+      "category_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "source_sha256": "03b8bbf1365c7506df61cae2dde7d38c77a990236898cecfdac8273fcee6a252",
+      "output_sha256": "963db4d59277092ba1d9d6352c3cb1d5c7dd734f7bc754059c8f387ac9bdb3ca"
+    },
+    "val": {
+      "images": 790,
+      "annotations": 1647,
+      "category_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "source_sha256": "27d39e072926abddda9baa8ad8b238da2240a750f35953b08e633d9cdfdaa7e5",
+      "output_sha256": "ae9b2fa29684828e23690a2c5b61d82cf5ab6cbd49eaa3572967a7486290bde1"
+    },
+    "test": {
+      "images": 790,
+      "annotations": 1647,
+      "category_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "source_sha256": "8cf81321974dea74d81d68dbce2732d46ce4c493bb3e98ef66caf852113fe64c",
+      "output_sha256": "84fcf82bcd5f8357520944af10e5ca34fa8b2f3cae9f898502efbec4f9758121"
+    }
+  }
+}

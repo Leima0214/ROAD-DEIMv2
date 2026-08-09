@@ -44,6 +44,16 @@ def loss_values(loss_dict: dict[str, torch.Tensor]) -> dict[str, float]:
 
 
 def prepare_checkpoint(safetensors_path: Path, checkpoint_path: Path) -> dict[str, torch.Tensor]:
+    if not safetensors_path.is_file():
+        from huggingface_hub import hf_hub_download
+
+        downloaded = hf_hub_download(
+            "Intellindust/DEIMv2_HGNetv2_N_COCO",
+            "model.safetensors",
+            local_dir=str(safetensors_path.parent),
+        )
+        if Path(downloaded).resolve() != safetensors_path.resolve():
+            raise AssertionError(f"Unexpected Hugging Face download path: {downloaded}")
     state = load_file(str(safetensors_path), device="cpu")
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"model": state}, checkpoint_path)

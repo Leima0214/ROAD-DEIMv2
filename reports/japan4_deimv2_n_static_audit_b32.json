@@ -1,0 +1,248 @@
+{
+  "status": "PASS",
+  "config": "configs/deimv2/deimv2_hgnetv2_n_japan4.yml",
+  "device": "NVIDIA GeForce RTX 4090",
+  "torch": "2.5.1+cu124",
+  "cuda": "12.4",
+  "pretrained": {
+    "source": "Intellindust/DEIMv2_HGNetv2_N_COCO/model.safetensors",
+    "safetensors_sha256": "0de14388a703d86c95200589b32a4497b0b00dceb1d2d381c6a14fbd958856cb",
+    "state_items": 637,
+    "matched_state_items": 628,
+    "mismatched_state_items": [
+      "decoder.dec_score_head.0.bias",
+      "decoder.dec_score_head.0.weight",
+      "decoder.dec_score_head.1.bias",
+      "decoder.dec_score_head.1.weight",
+      "decoder.dec_score_head.2.bias",
+      "decoder.dec_score_head.2.weight",
+      "decoder.denoising_class_embed.weight",
+      "decoder.enc_score_head.bias",
+      "decoder.enc_score_head.weight"
+    ],
+    "missing_state_items": [
+      "decoder.reg_scale",
+      "decoder.up"
+    ],
+    "matched_parameter_numel": 3548771,
+    "total_parameter_numel": 3551477,
+    "parameter_coverage": 0.9992380634873885,
+    "matched_tensors_exact_after_solver_setup": true,
+    "random_class_tensors_unchanged": true
+  },
+  "data": {
+    "train_images": 6320,
+    "val_images": 790,
+    "batch_shape": [
+      32,
+      3,
+      640,
+      640
+    ],
+    "batch_target_counts": [
+      1,
+      4,
+      5,
+      1,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      1,
+      2,
+      1,
+      1,
+      1,
+      2,
+      1,
+      1,
+      2,
+      0,
+      3,
+      1,
+      2,
+      3,
+      4,
+      2,
+      0,
+      2,
+      1,
+      2,
+      1,
+      4
+    ],
+    "observed_labels": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "model": {
+    "parameters": 3551477,
+    "trainable_parameters": 3551475,
+    "output_shapes_fp32": {
+      "pred_logits": [
+        32,
+        300,
+        4
+      ],
+      "pred_boxes": [
+        32,
+        300,
+        4
+      ],
+      "pred_corners": [
+        32,
+        300,
+        132
+      ],
+      "ref_points": [
+        32,
+        300,
+        4
+      ],
+      "up": [
+        1
+      ],
+      "reg_scale": [
+        1
+      ]
+    }
+  },
+  "fp32": {
+    "losses": {
+      "loss_mal": 1.5463545322418213,
+      "loss_bbox": 1.144007921218872,
+      "loss_giou": 1.5128291845321655,
+      "loss_fgl": 0.9490876793861389,
+      "loss_mal_aux_0": 1.3542325496673584,
+      "loss_bbox_aux_0": 1.1337885856628418,
+      "loss_giou_aux_0": 1.5192762613296509,
+      "loss_fgl_aux_0": 0.9339159727096558,
+      "loss_ddf_aux_0": 0.01921861432492733,
+      "loss_mal_aux_1": 1.353875994682312,
+      "loss_bbox_aux_1": 1.1412264108657837,
+      "loss_giou_aux_1": 1.503764271736145,
+      "loss_fgl_aux_1": 0.9522997736930847,
+      "loss_ddf_aux_1": 0.0018277864437550306,
+      "loss_mal_pre": 1.3866918087005615,
+      "loss_bbox_pre": 1.1178815364837646,
+      "loss_giou_pre": 1.5043132305145264,
+      "loss_mal_enc_0": 1.2971057891845703,
+      "loss_bbox_enc_0": 1.2725951671600342,
+      "loss_giou_enc_0": 1.526842474937439,
+      "loss_mal_dn_0": 0.9794506430625916,
+      "loss_bbox_dn_0": 1.3953841924667358,
+      "loss_giou_dn_0": 1.4948458671569824,
+      "loss_fgl_dn_0": 1.0906543731689453,
+      "loss_ddf_dn_0": 0.0965825691819191,
+      "loss_mal_dn_1": 1.1350094079971313,
+      "loss_bbox_dn_1": 1.2304818630218506,
+      "loss_giou_dn_1": 1.4279738664627075,
+      "loss_fgl_dn_1": 0.9967939257621765,
+      "loss_ddf_dn_1": 0.0095635075122118,
+      "loss_mal_dn_2": 1.2849111557006836,
+      "loss_bbox_dn_2": 1.21124267578125,
+      "loss_giou_dn_2": 1.4205145835876465,
+      "loss_fgl_dn_2": 0.9971298575401306,
+      "loss_mal_dn_pre": 0.9929552674293518,
+      "loss_bbox_dn_pre": 1.3776209354400635,
+      "loss_giou_dn_pre": 1.4830995798110962
+    },
+    "total_loss": 41.795352935791016,
+    "gradients": {
+      "gradient_tensors": 405,
+      "nonzero_gradient_tensors": 405,
+      "nonfinite_gradient_tensors": [],
+      "global_l2_norm": 28.87372899243385
+    }
+  },
+  "amp": {
+    "losses": {
+      "loss_mal": 1.5830078125,
+      "loss_bbox": 1.1177339553833008,
+      "loss_giou": 1.5050127506256104,
+      "loss_fgl": 0.94785076379776,
+      "loss_mal_aux_0": 1.3759765625,
+      "loss_bbox_aux_0": 1.1138452291488647,
+      "loss_giou_aux_0": 1.5139923095703125,
+      "loss_fgl_aux_0": 0.9272298216819763,
+      "loss_ddf_aux_0": 0.01973908767104149,
+      "loss_mal_aux_1": 1.3857421875,
+      "loss_bbox_aux_1": 1.1203702688217163,
+      "loss_giou_aux_1": 1.4997503757476807,
+      "loss_fgl_aux_1": 0.9457195997238159,
+      "loss_ddf_aux_1": 0.0017915223725140095,
+      "loss_mal_pre": 1.4013671875,
+      "loss_bbox_pre": 1.106292486190796,
+      "loss_giou_pre": 1.4978631734848022,
+      "loss_mal_enc_0": 1.2734375,
+      "loss_bbox_enc_0": 1.2464567422866821,
+      "loss_giou_enc_0": 1.5299487113952637,
+      "loss_mal_dn_0": 0.99560546875,
+      "loss_bbox_dn_0": 1.3615427017211914,
+      "loss_giou_dn_0": 1.4901809692382812,
+      "loss_fgl_dn_0": 1.110207438468933,
+      "loss_ddf_dn_0": 0.1010240912437439,
+      "loss_mal_dn_1": 1.1298828125,
+      "loss_bbox_dn_1": 1.2224756479263306,
+      "loss_giou_dn_1": 1.4261893033981323,
+      "loss_fgl_dn_1": 1.0074230432510376,
+      "loss_ddf_dn_1": 0.009420541115105152,
+      "loss_mal_dn_2": 1.271484375,
+      "loss_bbox_dn_2": 1.2167960405349731,
+      "loss_giou_dn_2": 1.4195934534072876,
+      "loss_fgl_dn_2": 1.0051153898239136,
+      "loss_mal_dn_pre": 1.0078125,
+      "loss_bbox_dn_pre": 1.3554773330688477,
+      "loss_giou_dn_pre": 1.4787495136260986
+    },
+    "total_loss": 41.72210693359375,
+    "gradients": {
+      "gradient_tensors": 405,
+      "nonzero_gradient_tensors": 405,
+      "nonfinite_gradient_tensors": [],
+      "global_l2_norm": 25.594414661010962
+    },
+    "scale_attempts": [
+      {
+        "attempt": 1,
+        "scale": 65536.0,
+        "finite_after_unscale": false
+      },
+      {
+        "attempt": 2,
+        "scale": 32768.0,
+        "finite_after_unscale": false
+      },
+      {
+        "attempt": 3,
+        "scale": 16384.0,
+        "finite_after_unscale": false
+      },
+      {
+        "attempt": 4,
+        "scale": 8192.0,
+        "finite_after_unscale": true
+      }
+    ],
+    "final_scale": 8192.0,
+    "pred_logits_dtype": "torch.float16",
+    "pred_boxes_finite": true
+  },
+  "validation_forward": {
+    "batch_shape": [
+      32,
+      3,
+      640,
+      640
+    ],
+    "prediction_batches": 32,
+    "scores_finite": true,
+    "boxes_finite": true
+  },
+  "peak_cuda_memory_mib": 11014.42578125
+}
