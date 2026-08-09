@@ -7,10 +7,14 @@ import argparse
 import hashlib
 import json
 import math
+import os
+import sys
 from pathlib import Path
 
 import torch
 from safetensors.torch import load_file
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from engine.core import YAMLConfig
 from engine.misc import dist_utils
