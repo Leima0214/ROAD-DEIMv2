@@ -147,19 +147,34 @@ def main() -> None:
     if gradients_fp32["nonfinite_gradient_tensors"]:
         raise FloatingPointError("Non-finite FP32 gradients")
 
-    model.zero_grad(set_to_none=True)
-    with torch.autocast(device_type="cuda", dtype=torch.float16):
-        outputs_amp = model(samples, targets=targets)
-    with torch.autocast(device_type="cuda", enabled=False):
-        losses_amp = solver.criterion(outputs_amp, targets, **metas)
-        total_amp = sum(losses_amp.values())
-    if not torch.isfinite(total_amp):
-        raise FloatingPointError(f"Non-finite AMP loss: {loss_values(losses_amp)}")
+    optimizer = cfg.optimizer
     scaler = torch.amp.GradScaler("cuda")
-    scaler.scale(total_amp).backward()
-    gradients_amp = finite_gradients(model)
-    if gradients_amp["nonfinite_gradient_tensors"]:
-        raise FloatingPointError("Non-finite AMP gradients")
+    amp_attempts = []
+    for amp_attempt in range(1, 9):
+        model.zero_grad(set_to_none=True)
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            outputs_amp = model(samples, targets=targets)
+        with torch.autocast(device_type="cuda", enabled=False):
+            losses_amp = solver.criterion(outputs_amp, targets, **metas)
+            total_amp = sum(losses_amp.values())
+        if not torch.isfinite(total_amp):
+            raise FloatingPointError(f"Non-finite AMP loss: {loss_values(losses_amp)}")
+        scale = float(scaler.get_scale())
+        scaler.scale(total_amp).backward()
+        scaler.unscale_(optimizer)
+        gradients_amp = finite_gradients(model)
+        amp_attempts.append(
+            {
+                "attempt": amp_attempt,
+                "scale": scale,
+                "finite_after_unscale": not gradients_amp["nonfinite_gradient_tensors"],
+            }
+        )
+        if not gradients_amp["nonfinite_gradient_tensors"]:
+            break
+        scaler.update()
+    else:
+        raise FloatingPointError("AMP gradients remained non-finite after dynamic scale backoff")
 
     model.eval()
     val_samples, val_targets = next(iter(val_loader))
@@ -211,6 +226,8 @@ def main() -> None:
             "losses": loss_values(losses_amp),
             "total_loss": float(total_amp.detach().cpu()),
             "gradients": gradients_amp,
+            "scale_attempts": amp_attempts,
+            "final_scale": amp_attempts[-1]["scale"],
             "pred_logits_dtype": str(outputs_amp["pred_logits"].dtype),
             "pred_boxes_finite": bool(torch.isfinite(outputs_amp["pred_boxes"]).all()),
         },
