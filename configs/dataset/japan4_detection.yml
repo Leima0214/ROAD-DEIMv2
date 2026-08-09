@@ -10,33 +10,13 @@ num_classes: 4
 remap_mscoco_category: False
 
 train_dataloader:
-  type: DataLoader
   dataset:
-    type: CocoDetection
     img_folder: /JAPAN4-DETR/JAPAN4-DETR/images/train
     ann_file: /JAPAN4-DETR/JAPAN4-DETR/annotations/deimv2/instances_train.json
-    return_masks: False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: True
   num_workers: 8
-  drop_last: True
-  collate_fn:
-    type: BatchImageCollateFunction
 
 val_dataloader:
-  type: DataLoader
   dataset:
-    type: CocoDetection
     img_folder: /JAPAN4-DETR/JAPAN4-DETR/images/val
     ann_file: /JAPAN4-DETR/JAPAN4-DETR/annotations/deimv2/instances_val.json
-    return_masks: False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: False
   num_workers: 8
-  drop_last: False
-  collate_fn:
-    type: BatchImageCollateFunction
