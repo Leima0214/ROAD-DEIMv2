@@ -1,0 +1,17 @@
+image_id,file_name,predicted_class,score,automatic_error_type,manual_error_type,review_note
+719,Japan_011876.jpg,D40,0.711844,background_or_unlabeled,suspected_unlabeled_damage,visible pothole-like depression inside prediction
+40,Japan_000671.jpg,D00,0.688524,background_or_unlabeled,suspected_unlabeled_damage,visible longitudinal crack inside prediction
+314,Japan_005095.jpg,D20,0.674679,background_or_unlabeled,suspected_unlabeled_damage,cracked or damaged painted road region
+296,Japan_004767.jpg,D00,0.661085,background_or_unlabeled,suspected_unlabeled_damage,visible diagonal crack inside prediction
+227,Japan_003815.jpg,D40,0.646799,background_or_unlabeled,uncertain_non_target_road_edge,damage is at road edge and may be outside the target definition
+702,Japan_011660.jpg,D10,0.640471,background_or_unlabeled,suspected_unlabeled_damage,visible seam or longitudinal crack beside drain
+664,Japan_011145.jpg,D00,0.638257,background_or_unlabeled,uncertain_low_visibility,blur and low contrast prevent confident manual classification
+763,Japan_012598.jpg,D00,0.633791,background_or_unlabeled,suspected_unlabeled_damage,visible longitudinal crack inside prediction
+759,Japan_012465.jpg,D40,0.631943,background_or_unlabeled,suspected_unlabeled_damage,visible pothole or repaired depression
+619,Japan_010526.jpg,D10,0.625453,background_or_unlabeled,suspected_unlabeled_damage,visible transverse crack inside prediction
+486,Japan_007782.jpg,D40,0.620289,background_or_unlabeled,suspected_unlabeled_damage,visible repaired or depressed road patch
+617,Japan_010510.jpg,D00,0.616839,background_or_unlabeled,suspected_unlabeled_damage,visible crack inside prediction
+480,Japan_007679.jpg,D10,0.612558,background_or_unlabeled,suspected_unlabeled_damage,visible transverse crack inside prediction
+56,Japan_000994.jpg,D00,0.609102,background_or_unlabeled,suspected_unlabeled_damage,faint but plausible crack under windshield blur
+256,Japan_004176.jpg,D40,0.601888,background_or_unlabeled,road_texture_or_utility_artifact,round surface artifacts are not confidently target damage
+268,Japan_004283.jpg,D10,0.596944,background_or_unlabeled,suspected_unlabeled_damage,visible transverse seam or crack

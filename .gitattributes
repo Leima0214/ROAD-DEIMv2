@@ -1,0 +1,3 @@
+# Frozen experiment artifacts must retain their byte-for-byte SHA256 identity.
+# Disable text normalization and textual diff checks for these immutable outputs.
+reports/japan4_deimv2_n_b0_* -text -diff

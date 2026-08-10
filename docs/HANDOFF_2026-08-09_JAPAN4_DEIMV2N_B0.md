@@ -1,5 +1,7 @@
 # Japan4 DEIMv2-N B0 实验交接（2026-08-09）
 
+> **状态更新（2026-08-10）：** 本文中的启动说明已完成使命，不得再次启动或 resume B0。正式冻结结果、薄弱点诊断、artifact 哈希与下一条唯一因果路线见 [`FREEZE_2026-08-10_JAPAN4_DEIMV2N_B0.md`](FREEZE_2026-08-10_JAPAN4_DEIMV2N_B0.md)。
+
 ## 当前结论
 
 DEIMv2-N 已完成 Japan4-cleanV3 数据、预训练权重、真实 batch、forward、loss、backward、AMP 和正式训练链路验证，可以在下一次 GPU 会话中直接从预训练权重启动 160E B0。
