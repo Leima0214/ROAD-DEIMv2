@@ -201,8 +201,13 @@ def identity_check(
         )
 
     incompatible = r1_model.load_state_dict(b0_state, strict=False)
-    expected_missing = {
+    new_r1_state_items = {
         name for name in r1_model.state_dict() if name.startswith("encoder.detail_")
+    }
+    # PyTorch intentionally does not report missing BatchNorm
+    # num_batches_tracked buffers when loading older/subset state dictionaries.
+    expected_missing = {
+        name for name in new_r1_state_items if not name.endswith(".num_batches_tracked")
     }
     if set(incompatible.missing_keys) != expected_missing or incompatible.unexpected_keys:
         raise AssertionError(
@@ -246,7 +251,7 @@ def identity_check(
     return {
         "shared_state_items": len(b0_state),
         "shared_seed42_state_exact_before_sync": True,
-        "new_r1_state_items": sorted(expected_missing),
+        "new_r1_state_items": sorted(new_r1_state_items),
         "output_tensor_count": len(b0_tensors),
         "max_abs_output_difference": max_abs,
         "tolerance": 1e-6,
