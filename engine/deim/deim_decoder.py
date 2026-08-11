@@ -8,7 +8,6 @@ Copyright (c) 2024 D-FINE Authors. All Rights Reserved.
 
 import math
 import copy
-import functools
 from collections import OrderedDict
 
 import torch
@@ -19,7 +18,7 @@ from typing import List
 
 from ..core import register
 from .denoising import get_contrastive_denoising_training_group
-from .utils import deformable_attention_core_func_v2, get_activation, inverse_sigmoid, bias_init_with_prob
+from .utils import inverse_sigmoid, bias_init_with_prob
 
 from .dfine_decoder import MSDeformableAttention, LQE, Integral
 from .dfine_utils import weighting_function, distance2bbox
@@ -107,6 +106,103 @@ class TransformerDecoderLayer(nn.Module):
         return target
 
 
+class FDRResidualRefiner(nn.Module):
+    """Lightweight, regression-only refinement of the final FDR logits.
+
+    The module performs one object-centric P4/P5 memory read and predicts a
+    zero-initialized residual for the four FDR distributions.  It deliberately
+    has no self-attention, classification head, or additional decoder loss.
+    """
+
+    def __init__(self,
+                 hidden_dim,
+                 num_head,
+                 num_levels,
+                 num_points,
+                 reg_max,
+                 gate_mode='all',
+                 gate_fraction=0.25,
+                 cross_attn_method='default',
+                 act='silu'):
+        super().__init__()
+        if gate_mode not in ('all', 'entropy'):
+            raise ValueError(f"Unsupported FDR refiner gate mode: {gate_mode}")
+        if not 0. < gate_fraction <= 1.:
+            raise ValueError(f"gate_fraction must be in (0, 1], got {gate_fraction}")
+
+        self.reg_max = reg_max
+        self.gate_mode = gate_mode
+        self.gate_fraction = gate_fraction
+        self.cross_attn = MSDeformableAttention(
+            hidden_dim,
+            num_head,
+            num_levels,
+            num_points,
+            method=cross_attn_method)
+        self.norm = RMSNorm(hidden_dim)
+        self.residual_head = MLP(
+            hidden_dim,
+            hidden_dim,
+            4 * (reg_max + 1),
+            num_layers=2,
+            act=act)
+
+        # Preserve exact B0 predictions at initialization while allowing the
+        # residual head to receive gradients on the first optimization step.
+        init.constant_(self.residual_head.layers[-1].weight, 0.)
+        init.constant_(self.residual_head.layers[-1].bias, 0.)
+
+    def normalized_mean_entropy(self, pred_corners):
+        distribution = pred_corners.reshape(
+            *pred_corners.shape[:-1], 4, self.reg_max + 1).softmax(dim=-1)
+        entropy = -(distribution * distribution.clamp_min(1e-12).log()).sum(dim=-1)
+        return entropy.mean(dim=-1) / math.log(self.reg_max + 1)
+
+    def _top_fraction_gate(self, risk):
+        num_queries = risk.shape[1]
+        topk = max(1, math.ceil(num_queries * self.gate_fraction))
+        indices = risk.topk(topk, dim=1, sorted=False).indices
+        gate = torch.zeros_like(risk)
+        return gate.scatter_(1, indices, 1.)
+
+    def build_gate(self, pred_corners, dn_meta=None):
+        if self.gate_mode == 'all':
+            return pred_corners.new_ones(pred_corners.shape[:2])
+
+        # Routing is intentionally non-learned and detached.  When denoising
+        # queries are present, rank them separately from the matching queries
+        # so the formal top-25% detector route is unchanged by DN group size.
+        risk = self.normalized_mean_entropy(pred_corners).detach()
+        if dn_meta is None:
+            return self._top_fraction_gate(risk)
+
+        split_sizes = dn_meta.get('dn_num_split')
+        if not split_sizes or sum(split_sizes) != risk.shape[1]:
+            raise ValueError("Invalid dn_num_split for FDR entropy routing")
+        return torch.cat([
+            self._top_fraction_gate(part)
+            for part in risk.split(split_sizes, dim=1)
+        ], dim=1)
+
+    def forward(self,
+                output,
+                query_pos_embed,
+                reference_points,
+                value,
+                spatial_shapes,
+                pred_corners,
+                dn_meta=None):
+        sampled = self.cross_attn(
+            output + query_pos_embed,
+            reference_points.unsqueeze(2),
+            value,
+            spatial_shapes)
+        refined_feature = self.norm(output + sampled)
+        residual = self.residual_head(refined_feature)
+        gate = self.build_gate(pred_corners, dn_meta)
+        return pred_corners + gate.unsqueeze(-1) * residual, gate
+
+
 class TransformerDecoder(nn.Module):
     """
     Transformer Decoder implementing Fine-grained Distribution Refinement (FDR).
@@ -117,7 +213,7 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
-                 eval_idx=-1, layer_scale=2, act='relu'):
+                 eval_idx=-1, layer_scale=2, act='relu', fdr_refiner=None):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -128,6 +224,7 @@ class TransformerDecoder(nn.Module):
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max, act=act)) for _ in range(num_layers)])
+        self.fdr_refiner = fdr_refiner
 
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
         """
@@ -199,9 +296,25 @@ class TransformerDecoder(nn.Module):
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
 
             if self.training or i == self.eval_idx:
-                scores = score_head[i](output)
+                raw_scores = score_head[i](output)
+
+                if self.fdr_refiner is not None and i == self.eval_idx:
+                    refiner_query_pos = query_pos_head(inter_ref_bbox.detach()).clamp(min=-10, max=10)
+                    pred_corners, _ = self.fdr_refiner(
+                        output,
+                        refiner_query_pos,
+                        inter_ref_bbox.detach(),
+                        value,
+                        spatial_shapes,
+                        pred_corners,
+                        dn_meta=dn_meta)
+                    inter_ref_bbox = distance2bbox(
+                        ref_points_initial,
+                        integral(pred_corners, project),
+                        reg_scale)
+
                 # Lqe does not affect the performance here.
-                scores = self.lqe_layers[i](scores, pred_corners)
+                scores = self.lqe_layers[i](raw_scores, pred_corners)
                 dec_out_logits.append(scores)
                 dec_out_bboxes.append(inter_ref_bbox)
                 dec_out_pred_corners.append(pred_corners)
@@ -252,6 +365,10 @@ class DEIMTransformer(nn.Module):
                  use_gateway=True,
                  share_bbox_head=False,
                  share_score_head=False,
+                 fdr_refiner=False,
+                 fdr_refiner_gate='all',
+                 fdr_refiner_fraction=0.25,
+                 fdr_refiner_num_points=2,
                  ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -272,6 +389,7 @@ class DEIMTransformer(nn.Module):
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
         self.reg_max = reg_max
+        self.use_fdr_refiner = fdr_refiner
 
         assert query_select_method in ('default', 'one2many', 'agnostic'), ''
         assert cross_attn_method in ('default', 'discrete'), ''
@@ -292,8 +410,31 @@ class DEIMTransformer(nn.Module):
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, use_gateway=use_gateway)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale, use_gateway=use_gateway)
+        refiner = None
+        if fdr_refiner:
+            resolved_eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+            if resolved_eval_idx != num_layers - 1:
+                raise ValueError("FDR refiner requires the evaluated decoder layer to be the final layer")
+
+            # Do not let the optional module perturb initialization of any B0
+            # tensor.  Its final residual layer is zero-initialized, so R2 is
+            # also functionally identical to B0 before training.
+            cpu_rng_state = torch.get_rng_state()
+            refiner = FDRResidualRefiner(
+                hidden_dim,
+                nhead,
+                num_levels,
+                fdr_refiner_num_points,
+                reg_max,
+                gate_mode=fdr_refiner_gate,
+                gate_fraction=fdr_refiner_fraction,
+                cross_attn_method=cross_attn_method,
+                act=mlp_act)
+            torch.set_rng_state(cpu_rng_state)
+
         self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
-                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation)
+                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation,
+                                          fdr_refiner=refiner)
       # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
