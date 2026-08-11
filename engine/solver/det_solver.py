@@ -163,9 +163,21 @@ class DetSolver(BaseSolver):
                     print(f'Refresh EMA at epoch {epoch} with decay {self.ema.decay}')
 
 
+            diagnostic_stats = {}
+            raw_model = dist_utils.de_parallel(self.model)
+            if hasattr(raw_model.encoder, 'detail_gate'):
+                diagnostic_stats['detail_gate'] = float(
+                    raw_model.encoder.detail_gate.detach().cpu()
+                )
+            if self.ema and hasattr(self.ema.module.encoder, 'detail_gate'):
+                diagnostic_stats['ema_detail_gate'] = float(
+                    self.ema.module.encoder.detail_gate.detach().cpu()
+                )
+
             log_stats = {
                 **{f'train_{k}': v for k, v in train_stats.items()},
                 **{f'test_{k}': v for k, v in test_stats.items()},
+                **diagnostic_stats,
                 'epoch': epoch,
                 'n_parameters': n_parameters
             }

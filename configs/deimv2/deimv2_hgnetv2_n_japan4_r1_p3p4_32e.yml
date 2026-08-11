@@ -1,0 +1,20 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# R1 is a 32-epoch futility screen, not a formal result and not a shortened
+# DEIMv2 recipe.  All inherited B0 settings stay fixed; only the P3 detail
+# residual below is added.  Compare epoch 31 against B0 epoch 31.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r1_p3p4_32e
+
+HGNetv2:
+  # B0 returns P4/P5. R1 additionally exposes P3 only to the gated adapter.
+  return_idx: [1, 2, 3]
+
+HybridEncoder:
+  # P3 (stride 8, 256 channels) -> depthwise stride-2 -> 128 channels -> P4.
+  # The raw scalar starts at zero, so R1 is functionally identical to B0 at E0.
+  detail_in_channels: 256
+  detail_gate_init: 0.0
+  detail_act: silu

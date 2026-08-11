@@ -355,6 +355,9 @@ class HybridEncoder(nn.Module):
                  version='dfine',
                  csp_type='csp',
                  fuse_op='cat',
+                 detail_in_channels=None,
+                 detail_gate_init=0.0,
+                 detail_act='silu',
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -367,6 +370,13 @@ class HybridEncoder(nn.Module):
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         self.fuse_op = fuse_op
+        self.detail_in_channels = detail_in_channels
+
+        if detail_in_channels is not None:
+            if not isinstance(detail_in_channels, int) or detail_in_channels <= 0:
+                raise ValueError(
+                    f'detail_in_channels must be a positive integer, got {detail_in_channels!r}'
+                )
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -425,6 +435,35 @@ class HybridEncoder(nn.Module):
 
         self._reset_parameters()
 
+        # Optional R1 path: downsample one stride-8 backbone feature and inject
+        # it into the existing stride-16 encoder input. A private deterministic
+        # RNG stream prevents the adapter from changing any shared B0 tensor's
+        # seed-42 initialization (notably the unmatched Japan4 class heads).
+        if detail_in_channels is not None:
+            adapter_seed = (torch.initial_seed() + 0x523150335034) % (2**63 - 1)
+            with torch.random.fork_rng(devices=[]):
+                torch.manual_seed(adapter_seed)
+                self.detail_downsample = nn.Sequential(
+                    ConvNormLayer_fuse(
+                        detail_in_channels,
+                        detail_in_channels,
+                        kernel_size=3,
+                        stride=2,
+                        g=detail_in_channels,
+                        act=detail_act,
+                    ),
+                    ConvNormLayer_fuse(
+                        detail_in_channels,
+                        hidden_dim,
+                        kernel_size=1,
+                        stride=1,
+                        act=None,
+                    ),
+                )
+            self.detail_gate = nn.Parameter(
+                torch.tensor(float(detail_gate_init), dtype=torch.float32)
+            )
+
     def _reset_parameters(self):
         if self.eval_spatial_size:
             for idx in self.use_encoder_idx:
@@ -454,8 +493,26 @@ class HybridEncoder(nn.Module):
         return torch.concat([out_w.sin(), out_w.cos(), out_h.sin(), out_h.cos()], dim=1)[None, :, :]
 
     def forward(self, feats):
-        assert len(feats) == len(self.in_channels)
+        expected_levels = len(self.in_channels) + int(self.detail_in_channels is not None)
+        if len(feats) != expected_levels:
+            raise ValueError(
+                f'HybridEncoder expected {expected_levels} input feature levels, got {len(feats)}'
+            )
+
+        detail_feat = None
+        if self.detail_in_channels is not None:
+            detail_feat, feats = feats[0], feats[1:]
+
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
+
+        if detail_feat is not None:
+            detail = self.detail_downsample(detail_feat)
+            if detail.shape != proj_feats[0].shape:
+                raise ValueError(
+                    'P3 detail projection must match the projected P4 tensor: '
+                    f'{tuple(detail.shape)} != {tuple(proj_feats[0].shape)}'
+                )
+            proj_feats[0] = proj_feats[0] + self.detail_gate * detail
 
         # encoder
         if self.num_encoder_layers > 0:
