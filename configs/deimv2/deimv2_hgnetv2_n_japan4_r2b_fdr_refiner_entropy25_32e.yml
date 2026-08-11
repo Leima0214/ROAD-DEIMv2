@@ -1,0 +1,17 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# R2-B uses the identical R2-A refiner but applies its residual only to the
+# top 25% of queries ranked per image by detached mean normalized four-side
+# FDR entropy.  The fraction is fixed from the D3 risk audit and must not be
+# swept on Japan4 Val.  Dense computation is retained for this accuracy-first
+# causal test; the gate changes function, not claimed runtime.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r2b_fdr_refiner_entropy25_32e
+
+DEIMTransformer:
+  fdr_refiner: True
+  fdr_refiner_gate: entropy
+  fdr_refiner_fraction: 0.25
+  fdr_refiner_num_points: 2

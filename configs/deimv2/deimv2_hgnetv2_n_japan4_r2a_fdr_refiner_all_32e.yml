@@ -1,0 +1,16 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# R2-A is the capacity/correctability screen for the proposed small module.
+# It keeps the frozen B0 decoder depth and classification path, and applies the
+# same regression-only FDR residual refiner to every query.  Compare E31 with
+# the frozen B0 E31; this is not a 160E result.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r2a_fdr_refiner_all_32e
+
+DEIMTransformer:
+  fdr_refiner: True
+  fdr_refiner_gate: all
+  fdr_refiner_fraction: 0.25
+  fdr_refiner_num_points: 2

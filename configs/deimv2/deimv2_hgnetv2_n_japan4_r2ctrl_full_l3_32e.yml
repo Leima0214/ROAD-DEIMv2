@@ -1,0 +1,13 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# Optional depth/capacity control only.  Unlike R2-A/B, this adds a complete
+# fourth decoder layer, including attention, classification, FDR and LQE.  It
+# must not be presented as the proposed small regression-only module.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r2ctrl_full_l3_32e
+
+DEIMTransformer:
+  num_layers: 4
+  eval_idx: -1
