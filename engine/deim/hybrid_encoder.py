@@ -162,6 +162,50 @@ class VGGBlock(nn.Module):
         return kernel * t, beta - running_mean * gamma / std
 
 
+class MorphologyAdaptiveStripFusion(nn.Module):
+    """A zero-initialized, morphology-aware residual for the stride-16 map.
+
+    The three branches preserve local evidence and aggregate horizontal or
+    vertical context.  A spatial gate chooses among them for every P4 cell.
+    The final BatchNorm scale starts at zero, so enabling the module leaves the
+    pretrained B0 function unchanged before optimization.
+    """
+
+    def __init__(self, channels, kernel_size=11, act='silu'):
+        super().__init__()
+        if kernel_size < 3 or kernel_size % 2 == 0:
+            raise ValueError("MASF kernel_size must be an odd integer >= 3")
+
+        padding = kernel_size // 2
+        self.horizontal = ConvNormLayer(
+            channels, channels, (1, kernel_size), 1,
+            g=channels, padding=(0, padding), act=act)
+        self.vertical = ConvNormLayer(
+            channels, channels, (kernel_size, 1), 1,
+            g=channels, padding=(padding, 0), act=act)
+        self.gate = nn.Conv2d(channels, 3, kernel_size=1, bias=True)
+        self.project = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels),
+        )
+
+        # Uniform branch selection is the least assumptive starting point.
+        nn.init.zeros_(self.gate.weight)
+        nn.init.zeros_(self.gate.bias)
+        # Strict B0 functional identity at initialization.
+        nn.init.zeros_(self.project[-1].weight)
+        nn.init.zeros_(self.project[-1].bias)
+
+    def forward(self, x):
+        branch_weights = self.gate(x).softmax(dim=1)
+        mixed = (
+            branch_weights[:, 0:1] * x
+            + branch_weights[:, 1:2] * self.horizontal(x)
+            + branch_weights[:, 2:3] * self.vertical(x)
+        )
+        return x + self.project(mixed)
+
+
 class CSPLayer(nn.Module):
     def __init__(self,
                  in_channels,
@@ -355,6 +399,8 @@ class HybridEncoder(nn.Module):
                  version='dfine',
                  csp_type='csp',
                  fuse_op='cat',
+                 masf_p4=False,
+                 masf_kernel_size=11,
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -367,6 +413,7 @@ class HybridEncoder(nn.Module):
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         self.fuse_op = fuse_op
+        self.masf_p4 = bool(masf_p4)
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -422,6 +469,12 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(copy.deepcopy(SCDown_Conv))
             self.pan_blocks.append(copy.deepcopy(Fuse_Block))
+
+        # Construct the optional residual after every B0 submodule so enabling
+        # it cannot consume RNG and perturb initialization of shared tensors.
+        self.p4_masf = MorphologyAdaptiveStripFusion(
+            hidden_dim, kernel_size=masf_kernel_size, act=act
+        ) if self.masf_p4 and 16 in feat_strides else nn.Identity()
 
         self._reset_parameters()
 
@@ -483,6 +536,8 @@ class HybridEncoder(nn.Module):
             fused_feat = (upsample_feat + feat_low) \
                 if self.fuse_op == 'sum' else torch.concat([upsample_feat, feat_low], dim=1)
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](fused_feat)
+            if self.masf_p4 and self.feat_strides[idx - 1] == 16:
+                inner_out = self.p4_masf(inner_out)
             inner_outs.insert(0, inner_out)
 
         outs = [inner_outs[0]]

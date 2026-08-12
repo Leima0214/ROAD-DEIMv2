@@ -1,0 +1,16 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# R3-A is a matched 32-epoch futility screen, not a formal 160E result.
+# Relative to frozen B0 it changes only the stride-16 top-down representation:
+# a zero-initialized morphology-adaptive local/horizontal/vertical residual is
+# applied after the existing P5-to-P4 fusion.  Decoder, FDR, LQE, matcher,
+# losses, data, augmentation, optimizer and all inherited schedule settings
+# remain unchanged.  Compare epoch 31 against frozen B0 epoch 31.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r3a_masf_p4_32e
+
+HybridEncoder:
+  masf_p4: True
+  masf_kernel_size: 11
