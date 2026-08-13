@@ -114,13 +114,18 @@ def build_solver(config: Path, checkpoint: Path, output_dir: Path, device: str, 
 def parameter_groups(model: torch.nn.Module) -> dict[str, list[torch.nn.Parameter]]:
     layer = model.decoder.decoder.layers[model.decoder.decoder.eval_idx]
     groups = {
-        "self_attention": list(layer.self_attn.parameters()) + list(layer.norm1.parameters()),
+        "self_attention_core": list(layer.self_attn.parameters()),
+        "self_attention_norm": list(layer.norm1.parameters()),
         "cross_sampling_offsets": list(layer.cross_attn.sampling_offsets.parameters()),
         "cross_attention_weights": list(layer.cross_attn.attention_weights.parameters()),
-        "cross_gateway_or_norm": (
-            list(layer.gateway.parameters()) if layer.use_gateway else list(layer.norm2.parameters())
+        "cross_gateway_linear": (
+            list(layer.gateway.gate.parameters()) if layer.use_gateway else []
         ),
-        "ffn": list(layer.swish_ffn.parameters()) + list(layer.norm3.parameters()),
+        "cross_gateway_norm": (
+            list(layer.gateway.norm.parameters()) if layer.use_gateway else list(layer.norm2.parameters())
+        ),
+        "ffn_core": list(layer.swish_ffn.parameters()),
+        "ffn_norm": list(layer.norm3.parameters()),
     }
     seen: set[int] = set()
     for name, parameters in groups.items():
@@ -291,14 +296,18 @@ def feature_energy(
         return None
     energy = gradient.detach().float().square().sum(dim=1)
     totals = defaultdict(float)
+    counts = defaultdict(int)
     for batch_index, target in enumerate(targets):
         masks = add_masks(target["boxes"], energy.shape[-2], energy.shape[-1], energy.device)
         for name, mask in zip(("core", "boundary", "background"), masks):
             totals[name] += float(energy[batch_index][mask].sum().item())
+            counts[name] += int(mask.sum().item())
     total = sum(totals.values())
     totals["total"] = total
     for name in ("core", "boundary", "background"):
         totals[f"{name}_fraction"] = totals[name] / total if total > 0 else 0.0
+        totals[f"{name}_cells"] = counts[name]
+        totals[f"{name}_mean_energy"] = totals[name] / counts[name] if counts[name] > 0 else 0.0
     return dict(totals)
 
 

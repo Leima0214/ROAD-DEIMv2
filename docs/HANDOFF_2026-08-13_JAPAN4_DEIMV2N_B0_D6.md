@@ -7,7 +7,7 @@ D6 只验证最终 Decoder 层是否存在足以支持分类/定位解耦的任�
 - `D6-Actual`：真实最终层 post-LQE `loss_mal` 梯度。
 - `D6-Pure`：固定 Actual 的最终匹配，用 LQE 前 raw class logits 重算同一 MAL 梯度。
 - `Localization`：同一最终输出的加权 `bbox + GIoU + FGL`。DEIMv2 主输出不产生 DDF；脚本另报包含全部辅助/DN loss key 的 full-objective 稳健性视角。
-- 统计位置：最终层 self-attention、deformable sampling offsets、attention weights、gateway/norm 和 FFN。
+- 统计位置：最终层 self-attention core/norm1、deformable sampling offsets、attention weights、gateway linear/RMSNorm 和 FFN core/norm3；门控与归一化不合并。
 - DEIMv2-N 的最终 MSDeformableAttention 没有独立 value projection 参数，因此脚本不虚构该分组，而是报告 P4/P5 value-feature 的空间梯度能量。
 
 主判决使用 deterministic no-augmentation Train 子集，默认 `64 × batch4 = 256` 张图。FP32 诊断保留原目标函数和计算图拓扑，避免 AMP 下小梯度舍入影响余弦。
