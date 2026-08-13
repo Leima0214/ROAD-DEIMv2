@@ -31,7 +31,8 @@ ulimit -n 65535
 ## 正式命令
 
 ```bash
-tmux new-session -d -s deimv2_n_japan4_r4g_32e_20260813 "bash -lc 'cd /root/ROAD-DEIMv2; ulimit -n 65535; set -o pipefail; CUDA_VISIBLE_DEVICES=0 /opt/conda/bin/python -u train.py -c configs/deimv2/deimv2_hgnetv2_n_japan4_r4g_gateway_norm_32e.yml -t weights/deimv2_hgnetv2_n_coco_hf.pth --use-amp --seed 42 -d cuda:0 --output-dir outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813 2>&1 | tee logs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813.log; rc=\${PIPESTATUS[0]}; echo \$rc > logs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813.exitcode; exec bash'"
+tmux new-session -d -s deimv2_n_japan4_r4g_32e_20260813 \
+  /bin/bash tools/run_japan4_deimv2_r4g_32e.sh
 ```
 
 日志：
