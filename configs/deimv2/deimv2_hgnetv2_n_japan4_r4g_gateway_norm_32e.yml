@@ -1,0 +1,15 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# R4-G is a matched 32-epoch causal screen, not a formal 160E result.
+# It changes only the final decoder layer's post-gateway RMSNorm: the
+# classification and localization streams receive independent 128-element
+# scales. Self-attention, cross-attention, gateway linear, FFN, norm3, heads,
+# LQE, FDR, matcher, optimizer, data and augmentation remain shared/frozen.
+# Compare epoch 31 against frozen B0 epoch 31 from the formal 160E log.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_r4g_gateway_norm_32e
+
+DEIMTransformer:
+  task_specific_gateway_norm: True

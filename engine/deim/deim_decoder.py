@@ -67,6 +67,26 @@ class TransformerDecoderLayer(nn.Module):
         self.swish_ffn = SwiGLUFFN(d_model, dim_feedforward // 2, d_model)
         self.dropout4 = nn.Dropout(dropout)
         self.norm3 = RMSNorm(d_model)
+        self.task_specific_gateway_norm = False
+
+    def enable_task_specific_gateway_norm(self):
+        if not self.use_gateway:
+            raise ValueError("Task-specific gateway normalization requires use_gateway=True")
+        self.gateway_cls_norm = copy.deepcopy(self.gateway.norm)
+        self.task_specific_gateway_norm = True
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        if self.task_specific_gateway_norm:
+            shared_key = prefix + "gateway.norm.scale"
+            cls_key = prefix + "gateway_cls_norm.scale"
+            if shared_key in state_dict and cls_key not in state_dict:
+                state_dict[cls_key] = state_dict[shared_key].clone()
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
+
+    def forward_ffn(self, target):
+        target2 = self.swish_ffn(target)
+        target = target + self.dropout4(target2)
+        return self.norm3(target.clamp(min=-65504, max=65504))
 
     def with_pos_embed(self, tensor, pos):
         return tensor if pos is None else tensor + pos
@@ -93,18 +113,19 @@ class TransformerDecoderLayer(nn.Module):
             value,
             spatial_shapes)
 
-        if self.use_gateway:
+        if self.use_gateway and self.task_specific_gateway_norm:
+            fused = self.gateway.fuse(target, self.dropout2(target2))
+            target_cls = self.gateway_cls_norm(fused)
+            target_loc = self.gateway.norm(fused)
+            return self.forward_ffn(target_cls), self.forward_ffn(target_loc)
+        elif self.use_gateway:
             target = self.gateway(target, self.dropout2(target2))
         else:
             target = target + self.dropout2(target2)
             target = self.norm2(target)
 
         # ffn
-        target2 = self.swish_ffn(target)
-        target = target + self.dropout4(target2)
-        target = self.norm3(target.clamp(min=-65504, max=65504))
-
-        return target
+        return self.forward_ffn(target)
 
 
 class TransformerDecoder(nn.Module):
@@ -117,7 +138,7 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
-                 eval_idx=-1, layer_scale=2, act='relu'):
+                 eval_idx=-1, layer_scale=2, act='relu', task_specific_gateway_norm=False):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -128,6 +149,11 @@ class TransformerDecoder(nn.Module):
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max, act=act)) for _ in range(num_layers)])
+        self.task_specific_gateway_norm = task_specific_gateway_norm
+        if task_specific_gateway_norm:
+            if self.eval_idx != num_layers - 1:
+                raise ValueError("R4-G requires eval_idx to select the final decoder layer")
+            self.layers[self.eval_idx].enable_task_specific_gateway_norm()
 
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
         """
@@ -186,20 +212,25 @@ class TransformerDecoder(nn.Module):
                 output = F.interpolate(output, size=query_pos_embed.shape[-1])
                 output_detach = output.detach()
 
-            output = layer(output, ref_points_input, value, spatial_shapes, attn_mask, query_pos_embed)
+            layer_output = layer(output, ref_points_input, value, spatial_shapes, attn_mask, query_pos_embed)
+            if isinstance(layer_output, tuple):
+                score_output, box_output = layer_output
+                output = box_output
+            else:
+                output = score_output = box_output = layer_output
 
             if i == 0 :
                 # Initial bounding box predictions with inverse sigmoid refinement
-                pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
-                pre_scores = score_head[0](output)
+                pre_bboxes = F.sigmoid(pre_bbox_head(box_output) + inverse_sigmoid(ref_points_detach))
+                pre_scores = score_head[0](score_output)
                 ref_points_initial = pre_bboxes.detach()
 
             # Refine bounding box corners using FDR, integrating previous layer's corrections
-            pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
+            pred_corners = bbox_head[i](box_output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
 
             if self.training or i == self.eval_idx:
-                scores = score_head[i](output)
+                scores = score_head[i](score_output)
                 # Lqe does not affect the performance here.
                 scores = self.lqe_layers[i](scores, pred_corners)
                 dec_out_logits.append(scores)
@@ -250,6 +281,7 @@ class DEIMTransformer(nn.Module):
                  layer_scale=1,
                  mlp_act='relu',
                  use_gateway=True,
+                 task_specific_gateway_norm=False,
                  share_bbox_head=False,
                  share_score_head=False,
                  ):
@@ -279,6 +311,7 @@ class DEIMTransformer(nn.Module):
         self.query_select_method = query_select_method
         # -- print the parameters
         print(f"     --- Use Gateway@{use_gateway} ---")
+        print(f"     --- Task-Specific Gateway Norm@{task_specific_gateway_norm} ---")
         print(f"     --- Use Share Bbox Head@{share_bbox_head} ---")
         print(f"     --- Use Share Score Head@{share_score_head} ---")
 
@@ -293,7 +326,8 @@ class DEIMTransformer(nn.Module):
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale, use_gateway=use_gateway)
         self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
-                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation)
+                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation,
+                                          task_specific_gateway_norm=task_specific_gateway_norm)
       # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio

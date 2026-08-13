@@ -76,8 +76,11 @@ class Gate(nn.Module):
         init.constant_(self.gate.weight, 0)
         self.norm = RMSNorm(d_model) if use_rmsnorm else nn.LayerNorm(d_model)
 
-    def forward(self, x1, x2):
+    def fuse(self, x1, x2):
         gate_input = torch.cat([x1, x2], dim=-1)
         gates = torch.sigmoid(self.gate(gate_input))
         gate1, gate2 = gates.chunk(2, dim=-1)
-        return self.norm(gate1 * x1 + gate2 * x2)
+        return gate1 * x1 + gate2 * x2
+
+    def forward(self, x1, x2):
+        return self.norm(self.fuse(x1, x2))
