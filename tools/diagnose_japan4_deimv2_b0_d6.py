@@ -25,6 +25,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import numpy as np
+
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 import torch
 import torch.nn.functional as F
 
@@ -194,8 +197,9 @@ def class_binary_mal(
 ) -> torch.Tensor | None:
     selected: list[tuple[int, int, int]] = []
     for batch_index, (source, target_ids) in enumerate(indices):
-        labels = targets[batch_index]["labels"][target_ids]
-        for source_id, target_id in zip(source[labels == class_id], target_ids[labels == class_id]):
+        labels = targets[batch_index]["labels"][target_ids.to(targets[batch_index]["labels"].device)]
+        keep = (labels == class_id).to(source.device)
+        for source_id, target_id in zip(source[keep], target_ids[keep]):
             selected.append((batch_index, int(source_id), int(target_id)))
     if not selected:
         return None
@@ -229,7 +233,8 @@ def class_localization_loss(
     filtered: list[tuple[torch.Tensor, torch.Tensor]] = []
     count = 0
     for batch_index, (source, target_ids) in enumerate(indices):
-        keep = targets[batch_index]["labels"][target_ids] == class_id
+        labels = targets[batch_index]["labels"][target_ids.to(targets[batch_index]["labels"].device)]
+        keep = (labels == class_id).to(source.device)
         filtered.append((source[keep], target_ids[keep]))
         count += int(keep.sum().item())
     if count == 0:
