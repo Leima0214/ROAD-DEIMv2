@@ -1,0 +1,215 @@
+{
+  "status": "PASS",
+  "generated_at_utc": "2026-08-13T05:19:24.172160+00:00",
+  "scope": "Val-only; Test not read",
+  "config": "configs/deimv2/deimv2_hgnetv2_n_japan4_r4g_gateway_norm_32e.yml",
+  "checkpoint": {
+    "path": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/best_stg1.pth",
+    "sha256": "8546706a477200572ffe6e858512fb9960da9287d2a3d90fe5650b1ca4763e4c",
+    "last_epoch": 31
+  },
+  "annotations": {
+    "path": "/JAPAN4-DETR/JAPAN4-DETR/annotations/deimv2/instances_val.json",
+    "sha256": "ae9b2fa29684828e23690a2c5b61d82cf5ab6cbd49eaa3572967a7486290bde1",
+    "images": 790,
+    "boxes": 1647,
+    "boxes_by_class": {
+      "D00": 405,
+      "D10": 398,
+      "D20": 620,
+      "D40": 224
+    },
+    "boxes_by_size": {
+      "large": 700,
+      "medium": 812,
+      "small": 135
+    }
+  },
+  "runtime": {
+    "images": 790,
+    "predictions_capped": 79000,
+    "max_dets_per_image": 100,
+    "peak_cuda_allocated_mib": 2637.04833984375,
+    "peak_cuda_reserved_mib": 3952.0,
+    "nofile": {
+      "supported": true,
+      "before": 65535,
+      "after": 65535,
+      "hard": 65535
+    }
+  },
+  "official_coco": {
+    "AP50_95": 0.22942285494036677,
+    "AP50": 0.4969741189012645,
+    "AP75": 0.18848008997802665,
+    "AP_small": 0.08765666775289005,
+    "AP_medium": 0.18760398722648505,
+    "AP_large": 0.2775291826557744,
+    "AR1": 0.22781057103232497,
+    "AR10": 0.44904996988483975,
+    "AR100": 0.5257596609912794,
+    "AR_small": 0.28344406906906905,
+    "AR_medium": 0.49311288828663524,
+    "AR_large": 0.6201424521572112
+  },
+  "official_coco_per_class": {
+    "D00": {
+      "AP50_95": 0.2191003143106382,
+      "AP50": 0.4860247873449997,
+      "AP75": 0.16472600778435526,
+      "AR100": 0.5279012345679013
+    },
+    "D10": {
+      "AP50_95": 0.1390474702416212,
+      "AP50": 0.3760659821617519,
+      "AP75": 0.07658000928523966,
+      "AR100": 0.4507537688442211
+    },
+    "D20": {
+      "AP50_95": 0.3316824704301594,
+      "AP50": 0.6169991095366689,
+      "AP75": 0.3404133653193872,
+      "AR100": 0.6574193548387096
+    },
+    "D40": {
+      "AP50_95": 0.2278611647790483,
+      "AP50": 0.5088065965616373,
+      "AP75": 0.17220097752312433,
+      "AR100": 0.46696428571428567
+    }
+  },
+  "diagnostic_operating_points_iou50": {
+    "fixed_0_25": {
+      "threshold": 0.25,
+      "tp": 1056,
+      "fp": 2054,
+      "fn": 591,
+      "precision_iou50": 0.33954983922829585,
+      "recall_iou50": 0.6411657559198543,
+      "f1_iou50": 0.443977296615514,
+      "fp_error_types": {
+        "background_or_unlabeled": 770,
+        "class_confusion": 89,
+        "duplicate": 307,
+        "localization": 888
+      }
+    },
+    "val_optimal_micro_f1": {
+      "threshold": 0.36159220337867737,
+      "tp": 785,
+      "fp": 565,
+      "fn": 862,
+      "precision_iou50": 0.5814814814814815,
+      "recall_iou50": 0.47662416514875533,
+      "f1_iou50": 0.5238571905238573,
+      "fp_error_types": {
+        "background_or_unlabeled": 201,
+        "class_confusion": 32,
+        "duplicate": 55,
+        "localization": 277
+      }
+    },
+    "val_optimal_by_class": {
+      "D00": {
+        "threshold": 0.3677681088447571,
+        "tp": 187,
+        "fp": 148,
+        "fn": 218,
+        "precision_iou50": 0.5582089552238806,
+        "recall_iou50": 0.4617283950617284,
+        "f1_iou50": 0.5054054054054054,
+        "fp_error_types": {
+          "background_or_unlabeled": 48,
+          "class_confusion": 15,
+          "duplicate": 9,
+          "localization": 76
+        }
+      },
+      "D10": {
+        "threshold": 0.333273708820343,
+        "tp": 164,
+        "fp": 182,
+        "fn": 234,
+        "precision_iou50": 0.47398843930635837,
+        "recall_iou50": 0.4120603015075377,
+        "f1_iou50": 0.44086021505376344,
+        "fp_error_types": {
+          "background_or_unlabeled": 91,
+          "class_confusion": 4,
+          "duplicate": 14,
+          "localization": 73
+        }
+      },
+      "D20": {
+        "threshold": 0.3712855875492096,
+        "tp": 337,
+        "fp": 156,
+        "fn": 283,
+        "precision_iou50": 0.6835699797160243,
+        "recall_iou50": 0.5435483870967742,
+        "f1_iou50": 0.605570530098832,
+        "fp_error_types": {
+          "background_or_unlabeled": 17,
+          "class_confusion": 11,
+          "duplicate": 30,
+          "localization": 98
+        }
+      },
+      "D40": {
+        "threshold": 0.39691275358200073,
+        "tp": 102,
+        "fp": 56,
+        "fn": 122,
+        "precision_iou50": 0.6455696202531646,
+        "recall_iou50": 0.45535714285714285,
+        "f1_iou50": 0.5340314136125655,
+        "fp_error_types": {
+          "background_or_unlabeled": 35,
+          "duplicate": 1,
+          "localization": 20
+        }
+      }
+    },
+    "warning": "Val-optimized thresholds are exploratory and are not locked Test thresholds."
+  },
+  "selected_threshold_error_audit": {
+    "threshold": 0.36159220337867737,
+    "fp_by_error_type": {
+      "background_or_unlabeled": 201,
+      "class_confusion": 32,
+      "duplicate": 55,
+      "localization": 277
+    },
+    "class_confusions": {
+      "D00->D10": 1,
+      "D00->D20": 17,
+      "D10->D00": 2,
+      "D10->D20": 1,
+      "D20->D00": 10,
+      "D20->D40": 1
+    },
+    "fn_by_class": {
+      "D00": 214,
+      "D10": 258,
+      "D20": 278,
+      "D40": 112
+    },
+    "fn_by_size": {
+      "large": 265,
+      "medium": 495,
+      "small": 102
+    }
+  },
+  "artifacts": {
+    "predictions": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/val_predictions_top100.json",
+    "predictions_sha256": "507b74ae64bfd9fce12fb159f76a6868a387a8729632661007eb89896d07585f",
+    "coco_eval": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/coco_eval.pth",
+    "coco_eval_sha256": "5bf94d2a788467fac02591c0ee044fb3252906d92145fd7c984e512fe6c0377a",
+    "fp_samples": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/fp_samples.csv",
+    "fn_samples": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/fn_samples.csv",
+    "top_fp_montage": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/top_fp_montage.jpg",
+    "top_fn_montage": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/top_fn_montage.jpg",
+    "top_background_or_unlabeled_montage": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/top_background_or_unlabeled_montage.jpg",
+    "top_localization_montage": "outputs/deimv2_n_japan4_r4g_gateway_norm_32e_seed42_20260813/val_diagnostics/top_localization_montage.jpg"
+  }
+}
