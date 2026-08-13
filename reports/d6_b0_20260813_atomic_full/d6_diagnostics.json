@@ -1,0 +1,1067 @@
+{
+  "status": "PASS",
+  "generated_at_utc": "2026-08-13T03:21:45.262202+00:00",
+  "scope": "Frozen B0; deterministic no-augmentation Train subset; no optimizer; Test not read.",
+  "inputs": {
+    "config": "configs/deimv2/deimv2_hgnetv2_n_japan4.yml",
+    "checkpoint": "outputs/formal_deimv2_n_japan4_b0_160e_seed42_20260810/best_stg1.pth",
+    "checkpoint_sha256": "0f0a5623491066f18acde42d6b436f18e6eb0beddcc8cdd0df847da7e8f00420",
+    "train_annotations": "/JAPAN4-DETR/JAPAN4-DETR/annotations/deimv2/instances_train.json",
+    "train_annotations_sha256": "963db4d59277092ba1d9d6352c3cb1d5c7dd734f7bc754059c8f387ac9bdb3ca",
+    "batch_size": 4,
+    "max_batches": 64,
+    "match_epoch": 123
+  },
+  "runtime": {
+    "device": "cuda:0",
+    "seed": 42,
+    "nofile": [
+      65535,
+      65535
+    ]
+  },
+  "definitions": {
+    "actual": "Final main post-LQE MAL gradient from the unchanged training graph.",
+    "pure": "Final main pre-LQE raw-logit MAL gradient with actual final matching held fixed.",
+    "localization": "Final main weighted bbox + GIoU + FGL; main DDF is absent by DEIMv2 design.",
+    "full_actual": "Robustness view summing all MAL vs all bbox/GIoU/FGL/DDF loss keys.",
+    "per_class": "Matched class-channel MAL vs matched class localization; diagnostic only."
+  },
+  "metadata": {
+    "parameter_groups": {
+      "self_attention_core": {
+        "parameters": 4,
+        "elements": 66048
+      },
+      "self_attention_norm": {
+        "parameters": 1,
+        "elements": 128
+      },
+      "cross_sampling_offsets": {
+        "parameters": 2,
+        "elements": 24768
+      },
+      "cross_attention_weights": {
+        "parameters": 2,
+        "elements": 12384
+      },
+      "cross_gateway_linear": {
+        "parameters": 2,
+        "elements": 65792
+      },
+      "cross_gateway_norm": {
+        "parameters": 1,
+        "elements": 128
+      },
+      "ffn_core": {
+        "parameters": 4,
+        "elements": 98944
+      },
+      "ffn_norm": {
+        "parameters": 1,
+        "elements": 128
+      }
+    },
+    "note": "DEIMv2-N has no learned value projection inside final MSDeformableAttention; P4/P5 value-feature gradients are therefore reported separately."
+  },
+  "summary": {
+    "actual_vs_loc_all_final": {
+      "n": 64,
+      "mean_cosine": -0.06906839640578255,
+      "median_cosine": -0.06815027445554733,
+      "negative_fraction": 0.984375,
+      "bootstrap_mean_95ci": [
+        -0.07776248761292663,
+        -0.060545586561784145
+      ]
+    },
+    "actual_vs_loc_cross_attention_weights": {
+      "n": 64,
+      "mean_cosine": 0.1355360642191954,
+      "median_cosine": 0.13520684838294983,
+      "negative_fraction": 0.140625,
+      "bootstrap_mean_95ci": [
+        0.11111922874879383,
+        0.15900007015588927
+      ]
+    },
+    "actual_vs_loc_cross_gateway_linear": {
+      "n": 64,
+      "mean_cosine": -0.02069030544407724,
+      "median_cosine": -0.021742125041782856,
+      "negative_fraction": 0.671875,
+      "bootstrap_mean_95ci": [
+        -0.03211899933112363,
+        -0.009173891852151428
+      ]
+    },
+    "actual_vs_loc_cross_gateway_norm": {
+      "n": 64,
+      "mean_cosine": -0.4322055985685438,
+      "median_cosine": -0.428743913769722,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.45264498246251605,
+        -0.41144316613790577
+      ]
+    },
+    "actual_vs_loc_cross_sampling_offsets": {
+      "n": 64,
+      "mean_cosine": 0.024306800711201504,
+      "median_cosine": 0.023504648357629776,
+      "negative_fraction": 0.46875,
+      "bootstrap_mean_95ci": [
+        -0.035255461966153236,
+        0.08194749636968485
+      ]
+    },
+    "actual_vs_loc_ffn_core": {
+      "n": 64,
+      "mean_cosine": 0.030380717042135075,
+      "median_cosine": 0.03083037119358778,
+      "negative_fraction": 0.0,
+      "bootstrap_mean_95ci": [
+        0.026931797037104844,
+        0.033587904669548155
+      ]
+    },
+    "actual_vs_loc_ffn_norm": {
+      "n": 64,
+      "mean_cosine": -0.02713380753993988,
+      "median_cosine": -0.023972898721694946,
+      "negative_fraction": 0.609375,
+      "bootstrap_mean_95ci": [
+        -0.05299763442017138,
+        -0.0005494190409081024
+      ]
+    },
+    "actual_vs_loc_self_attention_core": {
+      "n": 64,
+      "mean_cosine": 0.065874017731403,
+      "median_cosine": 0.058605434373021126,
+      "negative_fraction": 0.03125,
+      "bootstrap_mean_95ci": [
+        0.05549641810757748,
+        0.07674535752848897
+      ]
+    },
+    "actual_vs_loc_self_attention_norm": {
+      "n": 64,
+      "mean_cosine": -0.3679692806908861,
+      "median_cosine": -0.3598898649215698,
+      "negative_fraction": 0.96875,
+      "bootstrap_mean_95ci": [
+        -0.40628706879215315,
+        -0.33023648044036236
+      ]
+    },
+    "class_D00_actual_vs_loc_all_final": {
+      "n": 55,
+      "mean_cosine": -0.04052919261157513,
+      "median_cosine": -0.035002924501895905,
+      "negative_fraction": 0.8727272727272727,
+      "bootstrap_mean_95ci": [
+        -0.05178938168270344,
+        -0.029172390120696615
+      ]
+    },
+    "class_D00_actual_vs_loc_cross_attention_weights": {
+      "n": 55,
+      "mean_cosine": 0.05039465152235194,
+      "median_cosine": 0.03150704503059387,
+      "negative_fraction": 0.2545454545454545,
+      "bootstrap_mean_95ci": [
+        0.020664521996461026,
+        0.07865805257693864
+      ]
+    },
+    "class_D00_actual_vs_loc_cross_gateway_linear": {
+      "n": 55,
+      "mean_cosine": 0.01579478896985,
+      "median_cosine": 0.009201416745781898,
+      "negative_fraction": 0.41818181818181815,
+      "bootstrap_mean_95ci": [
+        0.001975168169222095,
+        0.030271009604065594
+      ]
+    },
+    "class_D00_actual_vs_loc_cross_gateway_norm": {
+      "n": 55,
+      "mean_cosine": -0.3743588055399331,
+      "median_cosine": -0.37328505516052246,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.4096626619588245,
+        -0.337714127891443
+      ]
+    },
+    "class_D00_actual_vs_loc_cross_sampling_offsets": {
+      "n": 55,
+      "mean_cosine": -0.044281220478429036,
+      "median_cosine": -0.031464044004678726,
+      "negative_fraction": 0.6181818181818182,
+      "bootstrap_mean_95ci": [
+        -0.08116737450261347,
+        -0.0071130064316093896
+      ]
+    },
+    "class_D00_actual_vs_loc_ffn_core": {
+      "n": 55,
+      "mean_cosine": 0.025129076906225897,
+      "median_cosine": 0.022305229678750038,
+      "negative_fraction": 0.01818181818181818,
+      "bootstrap_mean_95ci": [
+        0.021132852868177,
+        0.02910653763535348
+      ]
+    },
+    "class_D00_actual_vs_loc_ffn_norm": {
+      "n": 55,
+      "mean_cosine": 0.01785974942825057,
+      "median_cosine": -0.0001650489866733551,
+      "negative_fraction": 0.509090909090909,
+      "bootstrap_mean_95ci": [
+        -0.010321169725873254,
+        0.04762612760151653
+      ]
+    },
+    "class_D00_actual_vs_loc_self_attention_core": {
+      "n": 55,
+      "mean_cosine": 0.053747546025128524,
+      "median_cosine": 0.040105558931827545,
+      "negative_fraction": 0.12727272727272726,
+      "bootstrap_mean_95ci": [
+        0.03791260110563599,
+        0.0728236697791991
+      ]
+    },
+    "class_D00_actual_vs_loc_self_attention_norm": {
+      "n": 55,
+      "mean_cosine": -0.15422802059487864,
+      "median_cosine": -0.1767643839120865,
+      "negative_fraction": 0.6909090909090909,
+      "bootstrap_mean_95ci": [
+        -0.23191249294375832,
+        -0.08104378971694545
+      ]
+    },
+    "class_D00_pure_vs_loc_all_final": {
+      "n": 55,
+      "mean_cosine": -0.047756897158582105,
+      "median_cosine": -0.04214644432067871,
+      "negative_fraction": 0.8727272727272727,
+      "bootstrap_mean_95ci": [
+        -0.058697483331938693,
+        -0.036670240022834734
+      ]
+    },
+    "class_D00_pure_vs_loc_cross_attention_weights": {
+      "n": 55,
+      "mean_cosine": 0.05027104601771994,
+      "median_cosine": 0.02422848902642727,
+      "negative_fraction": 0.2727272727272727,
+      "bootstrap_mean_95ci": [
+        0.022350392778700386,
+        0.07860176317880607
+      ]
+    },
+    "class_D00_pure_vs_loc_cross_gateway_linear": {
+      "n": 55,
+      "mean_cosine": 0.009300431727685712,
+      "median_cosine": 0.0015369952889159322,
+      "negative_fraction": 0.45454545454545453,
+      "bootstrap_mean_95ci": [
+        -0.004450811669283378,
+        0.023967365078490482
+      ]
+    },
+    "class_D00_pure_vs_loc_cross_gateway_norm": {
+      "n": 55,
+      "mean_cosine": -0.38923160508275034,
+      "median_cosine": -0.38176023960113525,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.4245663072626022,
+        -0.3531040727414868
+      ]
+    },
+    "class_D00_pure_vs_loc_cross_sampling_offsets": {
+      "n": 55,
+      "mean_cosine": -0.052180002799088306,
+      "median_cosine": -0.036324210464954376,
+      "negative_fraction": 0.6,
+      "bootstrap_mean_95ci": [
+        -0.08803342445033856,
+        -0.01690160484984516
+      ]
+    },
+    "class_D00_pure_vs_loc_ffn_core": {
+      "n": 55,
+      "mean_cosine": 0.02077792247926647,
+      "median_cosine": 0.020008083432912827,
+      "negative_fraction": 0.05454545454545454,
+      "bootstrap_mean_95ci": [
+        0.017179136983203617,
+        0.024306637732608414
+      ]
+    },
+    "class_D00_pure_vs_loc_ffn_norm": {
+      "n": 55,
+      "mean_cosine": 0.017723459682681342,
+      "median_cosine": 0.0004436671733856201,
+      "negative_fraction": 0.4909090909090909,
+      "bootstrap_mean_95ci": [
+        -0.009795347591015425,
+        0.04722112488594245
+      ]
+    },
+    "class_D00_pure_vs_loc_self_attention_core": {
+      "n": 55,
+      "mean_cosine": 0.0487902202389457,
+      "median_cosine": 0.036231476813554764,
+      "negative_fraction": 0.12727272727272726,
+      "bootstrap_mean_95ci": [
+        0.03395604480946944,
+        0.06656400298636239
+      ]
+    },
+    "class_D00_pure_vs_loc_self_attention_norm": {
+      "n": 55,
+      "mean_cosine": -0.1636275579983538,
+      "median_cosine": -0.200338676571846,
+      "negative_fraction": 0.6909090909090909,
+      "bootstrap_mean_95ci": [
+        -0.24305106895891104,
+        -0.08987750551240009
+      ]
+    },
+    "class_D10_actual_vs_loc_all_final": {
+      "n": 47,
+      "mean_cosine": -0.023596553964183687,
+      "median_cosine": -0.03308599069714546,
+      "negative_fraction": 0.6595744680851063,
+      "bootstrap_mean_95ci": [
+        -0.03934480881496788,
+        -0.00674274551008451
+      ]
+    },
+    "class_D10_actual_vs_loc_cross_attention_weights": {
+      "n": 47,
+      "mean_cosine": 0.042766443196129295,
+      "median_cosine": 0.012813447043299675,
+      "negative_fraction": 0.425531914893617,
+      "bootstrap_mean_95ci": [
+        0.011018238582232213,
+        0.07850150277669679
+      ]
+    },
+    "class_D10_actual_vs_loc_cross_gateway_linear": {
+      "n": 47,
+      "mean_cosine": 0.0447100006202434,
+      "median_cosine": 0.028160322457551956,
+      "negative_fraction": 0.2978723404255319,
+      "bootstrap_mean_95ci": [
+        0.025067325033485258,
+        0.06501933444004031
+      ]
+    },
+    "class_D10_actual_vs_loc_cross_gateway_norm": {
+      "n": 47,
+      "mean_cosine": -0.34078056840820514,
+      "median_cosine": -0.3510429859161377,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.3815278898766066,
+        -0.2990304324339996
+      ]
+    },
+    "class_D10_actual_vs_loc_cross_sampling_offsets": {
+      "n": 47,
+      "mean_cosine": -0.09060201829081362,
+      "median_cosine": -0.0573074035346508,
+      "negative_fraction": 0.6382978723404256,
+      "bootstrap_mean_95ci": [
+        -0.18817103272675476,
+        0.00819908130624174
+      ]
+    },
+    "class_D10_actual_vs_loc_ffn_core": {
+      "n": 47,
+      "mean_cosine": 0.011723090527935865,
+      "median_cosine": 0.008941153064370155,
+      "negative_fraction": 0.2765957446808511,
+      "bootstrap_mean_95ci": [
+        0.0058202155932605745,
+        0.018131089001334217
+      ]
+    },
+    "class_D10_actual_vs_loc_ffn_norm": {
+      "n": 47,
+      "mean_cosine": 0.17232372587982644,
+      "median_cosine": 0.1790401190519333,
+      "negative_fraction": 0.2553191489361702,
+      "bootstrap_mean_95ci": [
+        0.10909048769860825,
+        0.23446184670394088
+      ]
+    },
+    "class_D10_actual_vs_loc_self_attention_core": {
+      "n": 47,
+      "mean_cosine": 0.08289673293326447,
+      "median_cosine": 0.07385696470737457,
+      "negative_fraction": 0.10638297872340426,
+      "bootstrap_mean_95ci": [
+        0.06158630181911422,
+        0.10518363185717347
+      ]
+    },
+    "class_D10_actual_vs_loc_self_attention_norm": {
+      "n": 47,
+      "mean_cosine": -0.17744623437682364,
+      "median_cosine": -0.19731545448303223,
+      "negative_fraction": 0.851063829787234,
+      "bootstrap_mean_95ci": [
+        -0.2301017215098948,
+        -0.12355078853607336
+      ]
+    },
+    "class_D10_pure_vs_loc_all_final": {
+      "n": 47,
+      "mean_cosine": -0.024901352584996123,
+      "median_cosine": -0.040079765021800995,
+      "negative_fraction": 0.6808510638297872,
+      "bootstrap_mean_95ci": [
+        -0.041883928111774174,
+        -0.006474280300887022
+      ]
+    },
+    "class_D10_pure_vs_loc_cross_attention_weights": {
+      "n": 47,
+      "mean_cosine": 0.04954095028261555,
+      "median_cosine": 0.018891632556915283,
+      "negative_fraction": 0.3191489361702128,
+      "bootstrap_mean_95ci": [
+        0.01731473430916865,
+        0.08541052422357447
+      ]
+    },
+    "class_D10_pure_vs_loc_cross_gateway_linear": {
+      "n": 47,
+      "mean_cosine": 0.04455320807570155,
+      "median_cosine": 0.02466306835412979,
+      "negative_fraction": 0.2978723404255319,
+      "bootstrap_mean_95ci": [
+        0.02297132563643514,
+        0.06718431033312959
+      ]
+    },
+    "class_D10_pure_vs_loc_cross_gateway_norm": {
+      "n": 47,
+      "mean_cosine": -0.3452495219225579,
+      "median_cosine": -0.3575423061847687,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.3865637707385294,
+        -0.3036065065044355
+      ]
+    },
+    "class_D10_pure_vs_loc_cross_sampling_offsets": {
+      "n": 47,
+      "mean_cosine": -0.08522367164334084,
+      "median_cosine": -0.09425483644008636,
+      "negative_fraction": 0.6382978723404256,
+      "bootstrap_mean_95ci": [
+        -0.18217967400684001,
+        0.012951071382044503
+      ]
+    },
+    "class_D10_pure_vs_loc_ffn_core": {
+      "n": 47,
+      "mean_cosine": 0.008236085327262891,
+      "median_cosine": 0.004698116332292557,
+      "negative_fraction": 0.3829787234042553,
+      "bootstrap_mean_95ci": [
+        0.00198130425662694,
+        0.01528254630319041
+      ]
+    },
+    "class_D10_pure_vs_loc_ffn_norm": {
+      "n": 47,
+      "mean_cosine": 0.1682857588488371,
+      "median_cosine": 0.1749536693096161,
+      "negative_fraction": 0.2553191489361702,
+      "bootstrap_mean_95ci": [
+        0.10526933355871192,
+        0.230044240000202
+      ]
+    },
+    "class_D10_pure_vs_loc_self_attention_core": {
+      "n": 47,
+      "mean_cosine": 0.07860308712685203,
+      "median_cosine": 0.06826185435056686,
+      "negative_fraction": 0.1276595744680851,
+      "bootstrap_mean_95ci": [
+        0.05670660695388041,
+        0.1011841388544355
+      ]
+    },
+    "class_D10_pure_vs_loc_self_attention_norm": {
+      "n": 47,
+      "mean_cosine": -0.17752807587385178,
+      "median_cosine": -0.21578334271907806,
+      "negative_fraction": 0.8085106382978723,
+      "bootstrap_mean_95ci": [
+        -0.23226841811011445,
+        -0.12041472693548556
+      ]
+    },
+    "class_D20_actual_vs_loc_all_final": {
+      "n": 62,
+      "mean_cosine": -0.04297239901197533,
+      "median_cosine": -0.04711792431771755,
+      "negative_fraction": 0.7580645161290323,
+      "bootstrap_mean_95ci": [
+        -0.058393308419674154,
+        -0.0276019798321349
+      ]
+    },
+    "class_D20_actual_vs_loc_cross_attention_weights": {
+      "n": 62,
+      "mean_cosine": 0.13923677733738818,
+      "median_cosine": 0.15352311730384827,
+      "negative_fraction": 0.16129032258064516,
+      "bootstrap_mean_95ci": [
+        0.1069030680986602,
+        0.17139451550751655
+      ]
+    },
+    "class_D20_actual_vs_loc_cross_gateway_linear": {
+      "n": 62,
+      "mean_cosine": -0.05141917897591127,
+      "median_cosine": -0.06399190798401833,
+      "negative_fraction": 0.8064516129032258,
+      "bootstrap_mean_95ci": [
+        -0.07068030881763984,
+        -0.031499578693417844
+      ]
+    },
+    "class_D20_actual_vs_loc_cross_gateway_norm": {
+      "n": 62,
+      "mean_cosine": -0.3402434799579843,
+      "median_cosine": -0.38422784209251404,
+      "negative_fraction": 0.9516129032258065,
+      "bootstrap_mean_95ci": [
+        -0.38275187480894307,
+        -0.29442464782736233
+      ]
+    },
+    "class_D20_actual_vs_loc_cross_sampling_offsets": {
+      "n": 62,
+      "mean_cosine": -0.0027559032934086937,
+      "median_cosine": 0.006702020764350891,
+      "negative_fraction": 0.5,
+      "bootstrap_mean_95ci": [
+        -0.06934175173932265,
+        0.06108204516612233
+      ]
+    },
+    "class_D20_actual_vs_loc_ffn_core": {
+      "n": 62,
+      "mean_cosine": 0.025756649898305055,
+      "median_cosine": 0.02362274006009102,
+      "negative_fraction": 0.22580645161290322,
+      "bootstrap_mean_95ci": [
+        0.01857702443808047,
+        0.033298261762378864
+      ]
+    },
+    "class_D20_actual_vs_loc_ffn_norm": {
+      "n": 62,
+      "mean_cosine": -0.016801432706415653,
+      "median_cosine": -0.014627487398684025,
+      "negative_fraction": 0.532258064516129,
+      "bootstrap_mean_95ci": [
+        -0.042838204413982894,
+        0.009073169939520382
+      ]
+    },
+    "class_D20_actual_vs_loc_self_attention_core": {
+      "n": 62,
+      "mean_cosine": 0.044402709771548546,
+      "median_cosine": 0.02942239586263895,
+      "negative_fraction": 0.25806451612903225,
+      "bootstrap_mean_95ci": [
+        0.023904334961046134,
+        0.06704841547762046
+      ]
+    },
+    "class_D20_actual_vs_loc_self_attention_norm": {
+      "n": 62,
+      "mean_cosine": -0.19704511965955457,
+      "median_cosine": -0.2449171096086502,
+      "negative_fraction": 0.7903225806451613,
+      "bootstrap_mean_95ci": [
+        -0.26269636900434573,
+        -0.12642688179208383
+      ]
+    },
+    "class_D20_pure_vs_loc_all_final": {
+      "n": 62,
+      "mean_cosine": -0.05347392412142888,
+      "median_cosine": -0.05893816612660885,
+      "negative_fraction": 0.7903225806451613,
+      "bootstrap_mean_95ci": [
+        -0.06921211794814876,
+        -0.037106719995368145
+      ]
+    },
+    "class_D20_pure_vs_loc_cross_attention_weights": {
+      "n": 62,
+      "mean_cosine": 0.12102564578245004,
+      "median_cosine": 0.13546884059906006,
+      "negative_fraction": 0.16129032258064516,
+      "bootstrap_mean_95ci": [
+        0.08790400761138317,
+        0.15446740639031745
+      ]
+    },
+    "class_D20_pure_vs_loc_cross_gateway_linear": {
+      "n": 62,
+      "mean_cosine": -0.058653019289786536,
+      "median_cosine": -0.07322098314762115,
+      "negative_fraction": 0.8225806451612904,
+      "bootstrap_mean_95ci": [
+        -0.07666559709431303,
+        -0.04004804595080655
+      ]
+    },
+    "class_D20_pure_vs_loc_cross_gateway_norm": {
+      "n": 62,
+      "mean_cosine": -0.35129680845045275,
+      "median_cosine": -0.3907857835292816,
+      "negative_fraction": 0.9516129032258065,
+      "bootstrap_mean_95ci": [
+        -0.39391751096794203,
+        -0.30536703897279593
+      ]
+    },
+    "class_D20_pure_vs_loc_cross_sampling_offsets": {
+      "n": 62,
+      "mean_cosine": -0.027137123408817476,
+      "median_cosine": -0.014295516535639763,
+      "negative_fraction": 0.5161290322580645,
+      "bootstrap_mean_95ci": [
+        -0.09119046266461092,
+        0.03603342382928297
+      ]
+    },
+    "class_D20_pure_vs_loc_ffn_core": {
+      "n": 62,
+      "mean_cosine": 0.02061806713050652,
+      "median_cosine": 0.01865664403885603,
+      "negative_fraction": 0.22580645161290322,
+      "bootstrap_mean_95ci": [
+        0.013720878973723418,
+        0.02755830795222503
+      ]
+    },
+    "class_D20_pure_vs_loc_ffn_norm": {
+      "n": 62,
+      "mean_cosine": -0.017016823974347884,
+      "median_cosine": -0.012138956226408482,
+      "negative_fraction": 0.532258064516129,
+      "bootstrap_mean_95ci": [
+        -0.042472381761387706,
+        0.008448280864996058
+      ]
+    },
+    "class_D20_pure_vs_loc_self_attention_core": {
+      "n": 62,
+      "mean_cosine": 0.03304937063160563,
+      "median_cosine": 0.022555516101419926,
+      "negative_fraction": 0.2903225806451613,
+      "bootstrap_mean_95ci": [
+        0.012428590918012385,
+        0.056441455686393555
+      ]
+    },
+    "class_D20_pure_vs_loc_self_attention_norm": {
+      "n": 62,
+      "mean_cosine": -0.20349857379351893,
+      "median_cosine": -0.2519594132900238,
+      "negative_fraction": 0.7903225806451613,
+      "bootstrap_mean_95ci": [
+        -0.26839117121492184,
+        -0.13304299838660705
+      ]
+    },
+    "class_D40_actual_vs_loc_all_final": {
+      "n": 30,
+      "mean_cosine": -0.030652929726056755,
+      "median_cosine": -0.029132911935448647,
+      "negative_fraction": 0.9666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.038458481418783774,
+        -0.022430220615351572
+      ]
+    },
+    "class_D40_actual_vs_loc_cross_attention_weights": {
+      "n": 30,
+      "mean_cosine": 0.02676192174355189,
+      "median_cosine": -0.002436497714370489,
+      "negative_fraction": 0.5,
+      "bootstrap_mean_95ci": [
+        -0.007961338229166965,
+        0.07677678093003731
+      ]
+    },
+    "class_D40_actual_vs_loc_cross_gateway_linear": {
+      "n": 30,
+      "mean_cosine": 0.0005598375108093023,
+      "median_cosine": 0.0050632290076464415,
+      "negative_fraction": 0.36666666666666664,
+      "bootstrap_mean_95ci": [
+        -0.02140095789344438,
+        0.020442725714528938
+      ]
+    },
+    "class_D40_actual_vs_loc_cross_gateway_norm": {
+      "n": 30,
+      "mean_cosine": -0.25372047498822214,
+      "median_cosine": -0.2461601048707962,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.2971824651397765,
+        -0.2115203136826555
+      ]
+    },
+    "class_D40_actual_vs_loc_cross_sampling_offsets": {
+      "n": 30,
+      "mean_cosine": -0.002842936012893915,
+      "median_cosine": -0.017576512414962053,
+      "negative_fraction": 0.5666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.04729504149484759,
+        0.044357827714023496
+      ]
+    },
+    "class_D40_actual_vs_loc_ffn_core": {
+      "n": 30,
+      "mean_cosine": 0.019828927291867634,
+      "median_cosine": 0.017516177147626877,
+      "negative_fraction": 0.16666666666666666,
+      "bootstrap_mean_95ci": [
+        0.012514015243699154,
+        0.027828849801832502
+      ]
+    },
+    "class_D40_actual_vs_loc_ffn_norm": {
+      "n": 30,
+      "mean_cosine": -0.13097801438222328,
+      "median_cosine": -0.12915384769439697,
+      "negative_fraction": 0.9333333333333333,
+      "bootstrap_mean_95ci": [
+        -0.1578522499774893,
+        -0.10198305755387992
+      ]
+    },
+    "class_D40_actual_vs_loc_self_attention_core": {
+      "n": 30,
+      "mean_cosine": 0.016445098052887866,
+      "median_cosine": 0.024417659267783165,
+      "negative_fraction": 0.26666666666666666,
+      "bootstrap_mean_95ci": [
+        -0.004887028548885912,
+        0.03683973929476148
+      ]
+    },
+    "class_D40_actual_vs_loc_self_attention_norm": {
+      "n": 30,
+      "mean_cosine": -0.2512285761535168,
+      "median_cosine": -0.3049626499414444,
+      "negative_fraction": 0.9666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.3075928932614625,
+        -0.19107233141859373
+      ]
+    },
+    "class_D40_pure_vs_loc_all_final": {
+      "n": 30,
+      "mean_cosine": -0.032325754617340864,
+      "median_cosine": -0.031616976484656334,
+      "negative_fraction": 0.9666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.040122903916635554,
+        -0.02417517949827015
+      ]
+    },
+    "class_D40_pure_vs_loc_cross_attention_weights": {
+      "n": 30,
+      "mean_cosine": 0.02748317567942043,
+      "median_cosine": -0.0012801617849618196,
+      "negative_fraction": 0.5333333333333333,
+      "bootstrap_mean_95ci": [
+        -0.00740789805383732,
+        0.07750438592629509
+      ]
+    },
+    "class_D40_pure_vs_loc_cross_gateway_linear": {
+      "n": 30,
+      "mean_cosine": -0.002171806302309657,
+      "median_cosine": 0.003445708891376853,
+      "negative_fraction": 0.4666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.022829187012054414,
+        0.01685588710553324
+      ]
+    },
+    "class_D40_pure_vs_loc_cross_gateway_norm": {
+      "n": 30,
+      "mean_cosine": -0.25782832664748034,
+      "median_cosine": -0.2489573210477829,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.3004058874864131,
+        -0.21610343279317024
+      ]
+    },
+    "class_D40_pure_vs_loc_cross_sampling_offsets": {
+      "n": 30,
+      "mean_cosine": 0.0005220668856054545,
+      "median_cosine": -0.0239961426705122,
+      "negative_fraction": 0.6,
+      "bootstrap_mean_95ci": [
+        -0.04564091932338973,
+        0.05115682117640973
+      ]
+    },
+    "class_D40_pure_vs_loc_ffn_core": {
+      "n": 30,
+      "mean_cosine": 0.017565905993493895,
+      "median_cosine": 0.016144586727023125,
+      "negative_fraction": 0.2,
+      "bootstrap_mean_95ci": [
+        0.009970675178531868,
+        0.025810332098820558
+      ]
+    },
+    "class_D40_pure_vs_loc_ffn_norm": {
+      "n": 30,
+      "mean_cosine": -0.12951410127182802,
+      "median_cosine": -0.12629755213856697,
+      "negative_fraction": 0.9333333333333333,
+      "bootstrap_mean_95ci": [
+        -0.15636894073337315,
+        -0.10058570441789923
+      ]
+    },
+    "class_D40_pure_vs_loc_self_attention_core": {
+      "n": 30,
+      "mean_cosine": 0.013126492267474532,
+      "median_cosine": 0.01698295585811138,
+      "negative_fraction": 0.3,
+      "bootstrap_mean_95ci": [
+        -0.007576501216972246,
+        0.03251181778808435
+      ]
+    },
+    "class_D40_pure_vs_loc_self_attention_norm": {
+      "n": 30,
+      "mean_cosine": -0.2626784029106299,
+      "median_cosine": -0.3171183168888092,
+      "negative_fraction": 0.9666666666666667,
+      "bootstrap_mean_95ci": [
+        -0.32074489631379643,
+        -0.20156245424722632
+      ]
+    },
+    "full_actual_vs_loc_all_final": {
+      "n": 64,
+      "mean_cosine": -0.09310159576125443,
+      "median_cosine": -0.0935152918100357,
+      "negative_fraction": 0.96875,
+      "bootstrap_mean_95ci": [
+        -0.10618485136510572,
+        -0.08134145747026196
+      ]
+    },
+    "full_actual_vs_loc_cross_attention_weights": {
+      "n": 64,
+      "mean_cosine": 0.1841485089098569,
+      "median_cosine": 0.1787930279970169,
+      "negative_fraction": 0.015625,
+      "bootstrap_mean_95ci": [
+        0.15966539521250525,
+        0.209199214396358
+      ]
+    },
+    "full_actual_vs_loc_cross_gateway_linear": {
+      "n": 64,
+      "mean_cosine": 0.018544203708188434,
+      "median_cosine": 0.016913228668272495,
+      "negative_fraction": 0.296875,
+      "bootstrap_mean_95ci": [
+        0.009361923048481912,
+        0.027713155119363366
+      ]
+    },
+    "full_actual_vs_loc_cross_gateway_norm": {
+      "n": 64,
+      "mean_cosine": -0.46306425984948874,
+      "median_cosine": -0.4660291373729706,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.4776999539928511,
+        -0.4485998440766707
+      ]
+    },
+    "full_actual_vs_loc_cross_sampling_offsets": {
+      "n": 64,
+      "mean_cosine": 0.19918557787605096,
+      "median_cosine": 0.24576391279697418,
+      "negative_fraction": 0.25,
+      "bootstrap_mean_95ci": [
+        0.1271944823783997,
+        0.26633274162450105
+      ]
+    },
+    "full_actual_vs_loc_ffn_core": {
+      "n": 64,
+      "mean_cosine": 0.015148246107855812,
+      "median_cosine": 0.018259777687489986,
+      "negative_fraction": 0.1875,
+      "bootstrap_mean_95ci": [
+        0.010933210179791786,
+        0.019154781158795233
+      ]
+    },
+    "full_actual_vs_loc_ffn_norm": {
+      "n": 64,
+      "mean_cosine": 0.09527568600606173,
+      "median_cosine": 0.0953834056854248,
+      "negative_fraction": 0.09375,
+      "bootstrap_mean_95ci": [
+        0.07449084975669393,
+        0.11575679319939809
+      ]
+    },
+    "full_actual_vs_loc_self_attention_core": {
+      "n": 64,
+      "mean_cosine": -0.05707813218032243,
+      "median_cosine": -0.0565877053886652,
+      "negative_fraction": 0.796875,
+      "bootstrap_mean_95ci": [
+        -0.07420064945090417,
+        -0.040539210042879845
+      ]
+    },
+    "full_actual_vs_loc_self_attention_norm": {
+      "n": 64,
+      "mean_cosine": -0.2880896290880628,
+      "median_cosine": -0.29566097259521484,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.3148017104715109,
+        -0.2618513550827629
+      ]
+    },
+    "pure_vs_loc_all_final": {
+      "n": 64,
+      "mean_cosine": -0.07798561560048256,
+      "median_cosine": -0.07934818044304848,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.08727906181156868,
+        -0.06893845055201382
+      ]
+    },
+    "pure_vs_loc_cross_attention_weights": {
+      "n": 64,
+      "mean_cosine": 0.12271646402950864,
+      "median_cosine": 0.12328740209341049,
+      "negative_fraction": 0.125,
+      "bootstrap_mean_95ci": [
+        0.09753728873074578,
+        0.14713173173549876
+      ]
+    },
+    "pure_vs_loc_cross_gateway_linear": {
+      "n": 64,
+      "mean_cosine": -0.025023928232258186,
+      "median_cosine": -0.02762915100902319,
+      "negative_fraction": 0.75,
+      "bootstrap_mean_95ci": [
+        -0.03650822770396189,
+        -0.013323931809736678
+      ]
+    },
+    "pure_vs_loc_cross_gateway_norm": {
+      "n": 64,
+      "mean_cosine": -0.4412415469996631,
+      "median_cosine": -0.44372178614139557,
+      "negative_fraction": 1.0,
+      "bootstrap_mean_95ci": [
+        -0.4618442897102796,
+        -0.42068440807051954
+      ]
+    },
+    "pure_vs_loc_cross_sampling_offsets": {
+      "n": 64,
+      "mean_cosine": 0.012258518749149516,
+      "median_cosine": -0.008425770327448845,
+      "negative_fraction": 0.515625,
+      "bootstrap_mean_95ci": [
+        -0.04597079994418891,
+        0.0682602337183198
+      ]
+    },
+    "pure_vs_loc_ffn_core": {
+      "n": 64,
+      "mean_cosine": 0.024076005596725736,
+      "median_cosine": 0.024054800160229206,
+      "negative_fraction": 0.078125,
+      "bootstrap_mean_95ci": [
+        0.020380233979994954,
+        0.02762604314648343
+      ]
+    },
+    "pure_vs_loc_ffn_norm": {
+      "n": 64,
+      "mean_cosine": -0.027188834734261036,
+      "median_cosine": -0.023045768961310387,
+      "negative_fraction": 0.609375,
+      "bootstrap_mean_95ci": [
+        -0.05264289810584159,
+        -0.0011453421204350867
+      ]
+    },
+    "pure_vs_loc_self_attention_core": {
+      "n": 64,
+      "mean_cosine": 0.05646831876219949,
+      "median_cosine": 0.051131002604961395,
+      "negative_fraction": 0.0625,
+      "bootstrap_mean_95ci": [
+        0.0473746891346309,
+        0.06599069358107953
+      ]
+    },
+    "pure_vs_loc_self_attention_norm": {
+      "n": 64,
+      "mean_cosine": -0.37217339407652617,
+      "median_cosine": -0.3610073924064636,
+      "negative_fraction": 0.96875,
+      "bootstrap_mean_95ci": [
+        -0.41032024897867814,
+        -0.33449922537547533
+      ]
+    }
+  },
+  "spatial_energy_rows": 128,
+  "decision": {
+    "case": "A",
+    "actual_gate": true,
+    "pure_gate": true,
+    "action": "GO_R4A_STRONG: true classification-localization conflict survives removal of LQE coupling.",
+    "gate_definition": "mean cosine bootstrap 95% upper bound < 0 and negative-batch fraction >= 0.60"
+  }
+}
