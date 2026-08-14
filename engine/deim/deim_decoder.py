@@ -200,7 +200,13 @@ class TransformerDecoder(nn.Module):
     def convert_to_deploy(self):
         self.project = weighting_function(self.reg_max, self.up, self.reg_scale, deploy=True)
         self.layers = self.layers[:self.eval_idx + 1]
-        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
+        retained_lqe = {self.eval_idx}
+        if self.use_ease_l2:
+            retained_lqe.add(self.eval_idx - 1)
+        self.lqe_layers = nn.ModuleList([
+            layer if i in retained_lqe else nn.Identity()
+            for i, layer in enumerate(self.lqe_layers)
+        ])
 
     def forward(self,
                 target,
@@ -267,11 +273,14 @@ class TransformerDecoder(nn.Module):
                 scores = self.lqe_layers[i](scores, pred_corners)
 
             if need_ease_relation:
-                # This read-only confidence route must not replace the native L1
-                # auxiliary logits. Using the final scoring interface also keeps
-                # deploy() compatible with B0's removal of earlier heads/LQEs.
-                relation_scores = score_head[self.eval_idx](output)
-                relation_scores = self.lqe_layers[self.eval_idx](relation_scores, pred_corners)
+                # Use the preceding layer's own supervised prediction, as in the
+                # EASE construction. The route is detached when the mask is built
+                # and therefore cannot rewrite the native auxiliary objective.
+                if self.training:
+                    relation_scores = scores
+                else:
+                    relation_scores = score_head[i](output)
+                    relation_scores = self.lqe_layers[i](relation_scores, pred_corners)
                 ease_scores, ease_boxes = relation_scores, inter_ref_bbox
 
             if self.training or i == self.eval_idx:
@@ -421,7 +430,13 @@ class DEIMTransformer(nn.Module):
         self._reset_parameters(feat_channels)
 
     def convert_to_deploy(self):
-        self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.dec_score_head[self.eval_idx]])
+        retained_score_heads = {self.eval_idx}
+        if self.use_ease_l2:
+            retained_score_heads.add(self.eval_idx - 1)
+        self.dec_score_head = nn.ModuleList([
+            head if i in retained_score_heads else nn.Identity()
+            for i, head in enumerate(self.dec_score_head)
+        ])
         self.dec_bbox_head = nn.ModuleList(
             [self.dec_bbox_head[i] if i <= self.eval_idx else nn.Identity() for i in range(len(self.dec_bbox_head))]
         )

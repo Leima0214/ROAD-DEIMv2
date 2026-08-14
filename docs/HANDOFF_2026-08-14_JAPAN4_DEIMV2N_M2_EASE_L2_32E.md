@@ -3,11 +3,12 @@
 ## Experiment boundary
 
 - Parent: frozen Japan4 DEIMv2-N B0 commit `4e4fc4e3c253adb9198aa9d6ed51a20116937cfc`.
-- Single intervention: the detached L1 state is evaluated by the native final scoring/LQE interface; its class-agnostic confidence and box IoU form an EASE-style pairwise relation that modulates L2 self-attention.
+- Single intervention: the native supervised L1 score/LQE output is detached; its class-agnostic confidence and box IoU form an EASE-style pairwise relation that modulates L2 self-attention.
 - The relation MLP is `1 -> 16 -> 8 heads`; its output layer is zero-initialized, so the initial log-decay is exactly zero.
 - Only the 300 matching queries are modulated during training. Denoising-query attention retains the native B0 mask and values.
 - Matcher, criterion, GO union, all losses, query count, encoder, deformable cross-attention, FFN, data, augmentation, optimizer and schedule remain B0.
 - The module is active during inference. It is an EASE-inspired MSelf-Attention adaptation, not a reproduction of full EASE-DETR.
+- Deployment retains the native L1 score head and LQE required by the relation route; the extra deployed parameter count versus B0 is `2,093` (`1,925` retained native parameters plus the `168`-parameter relation MLP).
 - Budget: 32 epochs, seed 42. Do not resume, tune, stack another module, or run 160E unless the screen passes.
 
 ## Promotion gate

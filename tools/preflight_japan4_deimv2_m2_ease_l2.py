@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -171,6 +172,22 @@ def main() -> None:
     amp_relation_gradient_nonzero = (
         amp_relation_grad is not None and float(amp_relation_grad.float().norm().item()) > 0.0)
 
+    base_deploy = copy.deepcopy(base_model).deploy()
+    m2_deploy = copy.deepcopy(m2_model).deploy()
+    base_deploy_params = sum(parameter.numel() for parameter in base_deploy.parameters())
+    m2_deploy_params = sum(parameter.numel() for parameter in m2_deploy.parameters())
+    with torch.no_grad():
+        base_deploy_outputs = base_deploy(samples)
+        m2_deploy_outputs = m2_deploy(samples)
+    deploy_diff = max_tensor_diff(base_deploy_outputs, m2_deploy_outputs)
+    native_l1_score_retained = isinstance(m2_deploy.decoder.dec_score_head[1], torch.nn.Linear)
+    native_l1_lqe_retained = not isinstance(
+        m2_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
+    base_l1_deploy_heads_removed = (
+        isinstance(base_deploy.decoder.dec_score_head[1], torch.nn.Identity)
+        and isinstance(base_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
+    )
+
     checks = {
         "actual_decoder_is_DEIMTransformer": type(m2_model.decoder).__name__ == "DEIMTransformer",
         "decoder_has_three_layers": len(decoder.layers) == 3,
@@ -193,6 +210,11 @@ def main() -> None:
         "amp_losses_finite": amp_losses_finite,
         "amp_gradients_finite": amp_gradients_finite,
         "amp_relation_gradient_nonzero": amp_relation_gradient_nonzero,
+        "native_l1_score_retained_for_m2_deploy": native_l1_score_retained,
+        "native_l1_lqe_retained_for_m2_deploy": native_l1_lqe_retained,
+        "base_l1_deploy_heads_still_removed": base_l1_deploy_heads_removed,
+        "initial_deploy_output_equivalent": deploy_diff <= args.tolerance,
+        "deployed_parameter_delta_is_2093": m2_deploy_params - base_deploy_params == 2093,
     }
     status = "PASS" if all(checks.values()) else "FAIL"
     report = {
@@ -203,16 +225,18 @@ def main() -> None:
             "batch_size": args.batch_size,
         },
         "implementation": {
-            "route": "L1 detached state through final score/LQE + IoU relation -> L2 MSelf-Attention",
+            "route": "native supervised L1 detached score/LQE + IoU relation -> L2 MSelf-Attention",
             "matching_queries_only_during_dn_training": True,
             "criterion_changes": 0,
             "extra_state_keys": sorted(extra_keys),
             "parameter_delta": m2_params - base_params,
+            "deployed_parameter_delta": m2_deploy_params - base_deploy_params,
         },
         "equivalence": {
             "eval_max_abs_diff": eval_diff,
             "train_max_abs_diff": train_diff,
             "loss_max_abs_diff": loss_diff,
+            "deploy_max_abs_diff": deploy_diff,
             "common_state_mismatches": common_mismatches,
         },
         "gradient_norms": gradient_norms,
