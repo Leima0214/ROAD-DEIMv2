@@ -128,6 +128,25 @@ def main() -> None:
         m2_eval = m2_model(samples)
     eval_diff = max_tensor_diff(base_eval, m2_eval)
 
+    # Deploy equivalence must be captured before any training-mode forward.
+    # Otherwise unequal BatchNorm running-stat updates in later FP32/AMP checks
+    # would contaminate this comparison even though no optimizer step occurs.
+    base_deploy = copy.deepcopy(base_model).deploy()
+    m2_deploy = copy.deepcopy(m2_model).deploy()
+    base_deploy_params = sum(parameter.numel() for parameter in base_deploy.parameters())
+    m2_deploy_params = sum(parameter.numel() for parameter in m2_deploy.parameters())
+    with torch.no_grad():
+        base_deploy_outputs = base_deploy(samples)
+        m2_deploy_outputs = m2_deploy(samples)
+    deploy_diff = max_tensor_diff(base_deploy_outputs, m2_deploy_outputs)
+    native_l1_score_retained = isinstance(m2_deploy.decoder.dec_score_head[1], torch.nn.Linear)
+    native_l1_lqe_retained = not isinstance(
+        m2_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
+    base_l1_deploy_heads_removed = (
+        isinstance(base_deploy.decoder.dec_score_head[1], torch.nn.Identity)
+        and isinstance(base_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
+    )
+
     base_model.train()
     m2_model.train()
     seed_all(123)
@@ -171,22 +190,6 @@ def main() -> None:
     amp_relation_grad = decoder.ease_relation_mlp[2].weight.grad
     amp_relation_gradient_nonzero = (
         amp_relation_grad is not None and float(amp_relation_grad.float().norm().item()) > 0.0)
-
-    base_deploy = copy.deepcopy(base_model).deploy()
-    m2_deploy = copy.deepcopy(m2_model).deploy()
-    base_deploy_params = sum(parameter.numel() for parameter in base_deploy.parameters())
-    m2_deploy_params = sum(parameter.numel() for parameter in m2_deploy.parameters())
-    with torch.no_grad():
-        base_deploy_outputs = base_deploy(samples)
-        m2_deploy_outputs = m2_deploy(samples)
-    deploy_diff = max_tensor_diff(base_deploy_outputs, m2_deploy_outputs)
-    native_l1_score_retained = isinstance(m2_deploy.decoder.dec_score_head[1], torch.nn.Linear)
-    native_l1_lqe_retained = not isinstance(
-        m2_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
-    base_l1_deploy_heads_removed = (
-        isinstance(base_deploy.decoder.dec_score_head[1], torch.nn.Identity)
-        and isinstance(base_deploy.decoder.decoder.lqe_layers[1], torch.nn.Identity)
-    )
 
     checks = {
         "actual_decoder_is_DEIMTransformer": type(m2_model.decoder).__name__ == "DEIMTransformer",
