@@ -1,0 +1,12 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M2 is a matched 32-epoch causal screen, not a formal 160E result.
+# It adds only an EASE-style pairwise leader/overlap bias to L2 self-attention.
+# Matcher, losses, GO union, query count, encoder, cross-attention and FFN stay B0.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_m2_ease_l2_32e
+
+DEIMTransformer:
+  use_ease_l2: True

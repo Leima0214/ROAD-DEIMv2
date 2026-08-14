@@ -117,17 +117,73 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
-                 eval_idx=-1, layer_scale=2, act='relu'):
+                 eval_idx=-1, layer_scale=2, act='relu', use_ease_l2=False):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.layer_scale = layer_scale
         self.num_head = num_head
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+        self.use_ease_l2 = use_ease_l2
+        if use_ease_l2:
+            assert num_layers == 3, "M2 EASE-L2 is defined only for the three-layer DEIMv2-N decoder"
+            assert self.eval_idx == num_layers - 1, "M2 EASE-L2 must modulate the final decoder layer"
+            assert layer_scale == 1, "M2 EASE-L2 does not support wide decoder layers"
+            rng_state = torch.random.get_rng_state()
+            self.ease_relation_mlp = nn.Sequential(
+                nn.Linear(1, 16),
+                nn.ReLU(inplace=True),
+                nn.Linear(16, num_head),
+            )
+            # sigmoid(0) * 2 == 1, hence log-decay is exactly zero and
+            # the pretrained B0 attention is unchanged at initialization.
+            nn.init.zeros_(self.ease_relation_mlp[-1].weight)
+            nn.init.zeros_(self.ease_relation_mlp[-1].bias)
+            # The official four-class heads are randomly initialized after the
+            # decoder. Do not let M2 construction perturb their B0 seed state.
+            torch.random.set_rng_state(rng_state)
         self.up, self.reg_scale, self.reg_max = up, reg_scale, reg_max
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max, act=act)) for _ in range(num_layers)])
+
+    @staticmethod
+    def _pairwise_iou_cxcywh(boxes):
+        centers, sizes = boxes[..., :2], boxes[..., 2:].clamp(min=0)
+        boxes_xyxy = torch.cat([centers - sizes / 2, centers + sizes / 2], dim=-1)
+        left_top = torch.maximum(boxes_xyxy[:, :, None, :2], boxes_xyxy[:, None, :, :2])
+        right_bottom = torch.minimum(boxes_xyxy[:, :, None, 2:], boxes_xyxy[:, None, :, 2:])
+        intersection = (right_bottom - left_top).clamp(min=0).prod(dim=-1)
+        area = sizes.prod(dim=-1)
+        union = area[:, :, None] + area[:, None, :] - intersection
+        return intersection / union.clamp(min=1e-6)
+
+    def _build_ease_l2_mask(self, scores, boxes, native_mask, dn_meta, dtype):
+        batch_size, total_queries = scores.shape[:2]
+        main_start = dn_meta['dn_num_split'][0] if dn_meta is not None else 0
+        main_scores = scores[:, main_start:].detach().sigmoid().amax(dim=-1)
+        main_boxes = boxes[:, main_start:].detach()
+
+        # Row i is the receiving query and column j is the source query.
+        rank = torch.where(
+            main_scores[:, :, None] >= main_scores[:, None, :],
+            torch.ones((), device=scores.device, dtype=dtype),
+            -torch.ones((), device=scores.device, dtype=dtype),
+        )
+        relation = rank * self._pairwise_iou_cxcywh(main_boxes).to(dtype)
+        decay = 2.0 * torch.sigmoid(self.ease_relation_mlp(relation.unsqueeze(-1)))
+        log_decay = decay.clamp(min=1e-4, max=2.0).log().permute(0, 3, 1, 2)
+
+        attention_bias = scores.new_zeros(
+            (batch_size, self.num_head, total_queries, total_queries), dtype=dtype)
+        attention_bias[:, :, main_start:, main_start:] = log_decay
+        if native_mask is not None:
+            expanded_mask = native_mask[None, None].expand(batch_size, self.num_head, -1, -1)
+            if native_mask.dtype == torch.bool:
+                attention_bias = attention_bias.masked_fill(expanded_mask, float('-inf'))
+            else:
+                attention_bias = attention_bias + expanded_mask.to(dtype)
+        return attention_bias.flatten(0, 1)
 
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
         """
@@ -176,6 +232,7 @@ class TransformerDecoder(nn.Module):
 
         ref_points_detach = F.sigmoid(ref_points_unact)
         query_pos_embed = query_pos_head(ref_points_detach).clamp(min=-10, max=10)
+        ease_scores = ease_boxes = None
 
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
@@ -186,7 +243,12 @@ class TransformerDecoder(nn.Module):
                 output = F.interpolate(output, size=query_pos_embed.shape[-1])
                 output_detach = output.detach()
 
-            output = layer(output, ref_points_input, value, spatial_shapes, attn_mask, query_pos_embed)
+            layer_attn_mask = attn_mask
+            if self.use_ease_l2 and i == self.eval_idx:
+                assert ease_scores is not None and ease_boxes is not None
+                layer_attn_mask = self._build_ease_l2_mask(
+                    ease_scores, ease_boxes, attn_mask, dn_meta, output.dtype)
+            output = layer(output, ref_points_input, value, spatial_shapes, layer_attn_mask, query_pos_embed)
 
             if i == 0 :
                 # Initial bounding box predictions with inverse sigmoid refinement
@@ -198,10 +260,16 @@ class TransformerDecoder(nn.Module):
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
 
-            if self.training or i == self.eval_idx:
+            need_ease_relation = self.use_ease_l2 and i == self.eval_idx - 1
+            if self.training or i == self.eval_idx or need_ease_relation:
                 scores = score_head[i](output)
                 # Lqe does not affect the performance here.
                 scores = self.lqe_layers[i](scores, pred_corners)
+
+            if need_ease_relation:
+                ease_scores, ease_boxes = scores, inter_ref_bbox
+
+            if self.training or i == self.eval_idx:
                 dec_out_logits.append(scores)
                 dec_out_bboxes.append(inter_ref_bbox)
                 dec_out_pred_corners.append(pred_corners)
@@ -252,6 +320,7 @@ class DEIMTransformer(nn.Module):
                  use_gateway=True,
                  share_bbox_head=False,
                  share_score_head=False,
+                 use_ease_l2=False,
                  ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -272,6 +341,7 @@ class DEIMTransformer(nn.Module):
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
         self.reg_max = reg_max
+        self.use_ease_l2 = use_ease_l2
 
         assert query_select_method in ('default', 'one2many', 'agnostic'), ''
         assert cross_attn_method in ('default', 'discrete'), ''
@@ -281,6 +351,7 @@ class DEIMTransformer(nn.Module):
         print(f"     --- Use Gateway@{use_gateway} ---")
         print(f"     --- Use Share Bbox Head@{share_bbox_head} ---")
         print(f"     --- Use Share Score Head@{share_score_head} ---")
+        print(f"     --- Use EASE-L2@{use_ease_l2} ---")
 
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
@@ -293,7 +364,8 @@ class DEIMTransformer(nn.Module):
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale, use_gateway=use_gateway)
         self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
-                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation)
+                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale,
+                                          act=activation, use_ease_l2=use_ease_l2)
       # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
