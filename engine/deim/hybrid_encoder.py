@@ -97,6 +97,34 @@ class ConvNormLayer(nn.Module):
         return self.act(self.norm(self.conv(x)))
 
 
+class SpatialAdaptiveCompetitiveFusion(nn.Module):
+    """Identity-initialized spatial competition for one top-down fusion."""
+
+    def __init__(self, channels):
+        super().__init__()
+        self.channels = int(channels)
+        self.gate = nn.Conv2d(2 * self.channels, 2, kernel_size=1, bias=True)
+        nn.init.zeros_(self.gate.weight)
+        nn.init.zeros_(self.gate.bias)
+
+    def forward(self, high, low):
+        if high.shape != low.shape:
+            raise ValueError(
+                "SACF inputs must have identical shapes, got "
+                f"{tuple(high.shape)} and {tuple(low.shape)}"
+            )
+        if high.shape[1] != self.channels:
+            raise ValueError(
+                f"SACF expected {self.channels} channels, got {high.shape[1]}"
+            )
+
+        weights = self.gate(torch.concat([high, low], dim=1)).softmax(dim=1)
+        high_weight, low_weight = weights.chunk(2, dim=1)
+        return torch.concat(
+            [2.0 * high_weight * high, 2.0 * low_weight * low], dim=1
+        )
+
+
 # self.cv1 = Conv(c1, c2, 1, 1)
 # self.cv2 = Conv(c2, c2, k=k, s=s, g=c2, act=False)
 class SCDown(nn.Module):
@@ -355,6 +383,7 @@ class HybridEncoder(nn.Module):
                  version='dfine',
                  csp_type='csp',
                  fuse_op='cat',
+                 use_sacf_p5p4=False,
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -367,6 +396,12 @@ class HybridEncoder(nn.Module):
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         self.fuse_op = fuse_op
+        self.use_sacf_p5p4 = bool(use_sacf_p5p4)
+        if self.use_sacf_p5p4:
+            assert list(feat_strides) == [16, 32], \
+                "M5-A SACF is defined only for the two-level P5-to-P4 fusion"
+            assert self.fuse_op == 'cat', \
+                "M5-A SACF preserves the B0 concat contract and requires fuse_op=cat"
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -422,6 +457,16 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(copy.deepcopy(SCDown_Conv))
             self.pan_blocks.append(copy.deepcopy(Fuse_Block))
+
+        # Construct the M5-A operator after every B0 submodule, then restore
+        # the RNG so enabling it cannot perturb any later shared initialization.
+        if self.use_sacf_p5p4:
+            rng_state = torch.random.get_rng_state()
+            self.p5_to_p4_competitive_fusion = \
+                SpatialAdaptiveCompetitiveFusion(hidden_dim)
+            torch.random.set_rng_state(rng_state)
+        else:
+            self.p5_to_p4_competitive_fusion = None
 
         self._reset_parameters()
 
@@ -480,8 +525,12 @@ class HybridEncoder(nn.Module):
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
             upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
-            fused_feat = (upsample_feat + feat_low) \
-                if self.fuse_op == 'sum' else torch.concat([upsample_feat, feat_low], dim=1)
+            if self.use_sacf_p5p4:
+                fused_feat = self.p5_to_p4_competitive_fusion(
+                    upsample_feat, feat_low)
+            else:
+                fused_feat = (upsample_feat + feat_low) \
+                    if self.fuse_op == 'sum' else torch.concat([upsample_feat, feat_low], dim=1)
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](fused_feat)
             inner_outs.insert(0, inner_out)
 
