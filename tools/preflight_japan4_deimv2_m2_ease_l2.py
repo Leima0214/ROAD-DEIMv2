@@ -203,7 +203,7 @@ def main() -> None:
             "batch_size": args.batch_size,
         },
         "implementation": {
-            "route": "L1 detached score/IoU relation -> L2 MSelf-Attention",
+            "route": "L1 detached state through final score/LQE + IoU relation -> L2 MSelf-Attention",
             "matching_queries_only_during_dn_training": True,
             "criterion_changes": 0,
             "extra_state_keys": sorted(extra_keys),

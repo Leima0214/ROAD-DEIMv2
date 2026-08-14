@@ -3,7 +3,7 @@
 ## Experiment boundary
 
 - Parent: frozen Japan4 DEIMv2-N B0 commit `4e4fc4e3c253adb9198aa9d6ed51a20116937cfc`.
-- Single intervention: L1 detached class-agnostic confidence and box IoU form an EASE-style pairwise relation that modulates L2 self-attention.
+- Single intervention: the detached L1 state is evaluated by the native final scoring/LQE interface; its class-agnostic confidence and box IoU form an EASE-style pairwise relation that modulates L2 self-attention.
 - The relation MLP is `1 -> 16 -> 8 heads`; its output layer is zero-initialized, so the initial log-decay is exactly zero.
 - Only the 300 matching queries are modulated during training. Denoising-query attention retains the native B0 mask and values.
 - Matcher, criterion, GO union, all losses, query count, encoder, deformable cross-attention, FFN, data, augmentation, optimizer and schedule remain B0.

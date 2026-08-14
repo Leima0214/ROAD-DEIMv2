@@ -262,9 +262,14 @@ class TransformerDecoder(nn.Module):
 
             need_ease_relation = self.use_ease_l2 and i == self.eval_idx - 1
             if self.training or i == self.eval_idx or need_ease_relation:
-                scores = score_head[i](output)
+                # M2 needs a confidence estimate for the L1 state at inference.
+                # Use the final scoring interface here so deploy() can retain the
+                # native B0 final heads only; earlier heads/LQEs are deliberately
+                # replaced by Identity in the stock deployment path.
+                relation_head_idx = self.eval_idx if need_ease_relation else i
+                scores = score_head[relation_head_idx](output)
                 # Lqe does not affect the performance here.
-                scores = self.lqe_layers[i](scores, pred_corners)
+                scores = self.lqe_layers[relation_head_idx](scores, pred_corners)
 
             if need_ease_relation:
                 ease_scores, ease_boxes = scores, inter_ref_bbox
