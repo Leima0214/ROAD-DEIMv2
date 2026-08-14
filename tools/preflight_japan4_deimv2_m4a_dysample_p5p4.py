@@ -172,8 +172,9 @@ def main() -> None:
     total_loss = sum(m4a_losses.values())
     gradient_norms = {
         "dysample_offset_weight": grad_norm(total_loss, offset_weight),
-        "normal_decoder_input_projection": grad_norm(
-            total_loss, m4a_model.decoder.input_proj[0][0].weight),
+        "normal_decoder_l0_self_attention": grad_norm(
+            total_loss,
+            m4a_model.decoder.decoder.layers[0].self_attn.in_proj_weight),
     }
 
     del base_train, base_losses, m4a_train, m4a_losses, total_loss
@@ -227,7 +228,7 @@ def main() -> None:
         "base_loss_keys_identical": loss_key_match,
         "fp32_losses_finite": fp32_losses_finite,
         "dysample_offset_gradient_nonzero": gradient_norms["dysample_offset_weight"] > 0.0,
-        "normal_decoder_gradient_nonzero": gradient_norms["normal_decoder_input_projection"] > 0.0,
+        "normal_decoder_gradient_nonzero": gradient_norms["normal_decoder_l0_self_attention"] > 0.0,
         "amp_losses_finite": amp_losses_finite,
         "amp_gradients_finite": amp_gradients_finite,
         "amp_offset_gradient_nonzero": amp_offset_gradient_nonzero,
