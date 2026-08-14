@@ -128,7 +128,7 @@ class DySample(nn.Module):
         coords_w = torch.arange(width, device=x.device, dtype=x.dtype) + 0.5
         coords = torch.stack(torch.meshgrid(
             coords_w, coords_h, indexing="ij"
-        )).transpose(1, 2).unsqueeze(0).unsqueeze(1)
+        )).transpose(1, 2).unsqueeze(1).unsqueeze(0)
         normalizer = torch.tensor(
             [width, height], device=x.device, dtype=x.dtype
         ).view(1, 2, 1, 1, 1)
