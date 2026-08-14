@@ -97,6 +97,61 @@ class ConvNormLayer(nn.Module):
         return self.act(self.norm(self.conv(x)))
 
 
+class DySample(nn.Module):
+    """Official LP-style DySample used only for the M4-A P5-to-P4 replacement."""
+
+    def __init__(self, in_channels, scale=2, groups=4):
+        super().__init__()
+        if in_channels < groups or in_channels % groups != 0:
+            raise ValueError("DySample channels must be divisible by groups")
+        self.scale = int(scale)
+        self.groups = int(groups)
+        self.offset = nn.Conv2d(
+            in_channels, 2 * groups * self.scale ** 2, kernel_size=1)
+        nn.init.normal_(self.offset.weight, mean=0.0, std=0.001)
+        nn.init.constant_(self.offset.bias, 0.0)
+        self.register_buffer("init_pos", self._init_pos())
+
+    def _init_pos(self):
+        positions = torch.arange(
+            (-self.scale + 1) / 2,
+            (self.scale - 1) / 2 + 1,
+        ) / self.scale
+        return torch.stack(torch.meshgrid(
+            positions, positions, indexing="ij"
+        )).transpose(1, 2).repeat(1, self.groups, 1).reshape(1, -1, 1, 1)
+
+    def _sample(self, x, offset):
+        batch_size, _, height, width = offset.shape
+        offset = offset.view(batch_size, 2, -1, height, width)
+        coords_h = torch.arange(height, device=x.device, dtype=x.dtype) + 0.5
+        coords_w = torch.arange(width, device=x.device, dtype=x.dtype) + 0.5
+        coords = torch.stack(torch.meshgrid(
+            coords_w, coords_h, indexing="ij"
+        )).transpose(1, 2).unsqueeze(0).unsqueeze(1)
+        normalizer = torch.tensor(
+            [width, height], device=x.device, dtype=x.dtype
+        ).view(1, 2, 1, 1, 1)
+        coords = 2.0 * (coords + offset) / normalizer - 1.0
+        coords = F.pixel_shuffle(
+            coords.view(batch_size, -1, height, width), self.scale
+        ).view(
+            batch_size, 2, -1,
+            self.scale * height, self.scale * width,
+        ).permute(0, 2, 3, 4, 1).contiguous().flatten(0, 1)
+        return F.grid_sample(
+            x.reshape(batch_size * self.groups, -1, height, width),
+            coords,
+            mode="bilinear",
+            align_corners=False,
+            padding_mode="border",
+        ).view(batch_size, -1, self.scale * height, self.scale * width)
+
+    def forward(self, x):
+        offset = self.offset(x) * 0.25 + self.init_pos.to(dtype=x.dtype)
+        return self._sample(x, offset)
+
+
 # self.cv1 = Conv(c1, c2, 1, 1)
 # self.cv2 = Conv(c2, c2, k=k, s=s, g=c2, act=False)
 class SCDown(nn.Module):
@@ -355,6 +410,8 @@ class HybridEncoder(nn.Module):
                  version='dfine',
                  csp_type='csp',
                  fuse_op='cat',
+                 use_dysample_p5p4=False,
+                 dysample_groups=4,
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -367,6 +424,11 @@ class HybridEncoder(nn.Module):
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         self.fuse_op = fuse_op
+        self.use_dysample_p5p4 = bool(use_dysample_p5p4)
+        self.dysample_groups = int(dysample_groups)
+        if self.use_dysample_p5p4:
+            assert list(feat_strides) == [16, 32], \
+                "M4-A DySample is defined only for the two-level P5-to-P4 fusion"
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -422,6 +484,16 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(copy.deepcopy(SCDown_Conv))
             self.pan_blocks.append(copy.deepcopy(Fuse_Block))
+
+        # Construct the new operator after every B0 submodule, then restore the
+        # CPU RNG so all later shared parameters retain the exact B0 seed state.
+        if self.use_dysample_p5p4:
+            rng_state = torch.random.get_rng_state()
+            self.p5_to_p4_upsample = DySample(
+                hidden_dim, scale=2, groups=self.dysample_groups)
+            torch.random.set_rng_state(rng_state)
+        else:
+            self.p5_to_p4_upsample = None
 
         self._reset_parameters()
 
@@ -479,7 +551,10 @@ class HybridEncoder(nn.Module):
             feat_low = proj_feats[idx - 1]
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
-            upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
+            if self.use_dysample_p5p4:
+                upsample_feat = self.p5_to_p4_upsample(feat_heigh)
+            else:
+                upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
             fused_feat = (upsample_feat + feat_low) \
                 if self.fuse_op == 'sum' else torch.concat([upsample_feat, feat_low], dim=1)
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](fused_feat)

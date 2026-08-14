@@ -1,0 +1,13 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M4-A is a matched 32-epoch causal screen, not a formal long run.
+# The sole intervention is replacing the HybridEncoder P5-to-P4 nearest
+# interpolation with official LP-style DySample (scale=2, groups=4, no scope).
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_m4a_dysample_p5p4_32e
+
+HybridEncoder:
+  use_dysample_p5p4: True
+  dysample_groups: 4
