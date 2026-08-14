@@ -117,13 +117,18 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
-                 eval_idx=-1, layer_scale=2, act='relu'):
+                 eval_idx=-1, layer_scale=2, act='relu', use_scqr=False):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.layer_scale = layer_scale
         self.num_head = num_head
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+        self.use_scqr = use_scqr
+        if use_scqr:
+            assert num_layers == 3, "M1 SCQR is defined only for the three-layer DEIMv2-N decoder"
+            assert self.eval_idx == num_layers - 1, "M1 SCQR requires the final decoder layer for evaluation"
+            assert layer_scale == 1, "M1 SCQR does not support wide decoder layers"
         self.up, self.reg_scale, self.reg_max = up, reg_scale, reg_max
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
@@ -176,6 +181,7 @@ class TransformerDecoder(nn.Module):
 
         ref_points_detach = F.sigmoid(ref_points_unact)
         query_pos_embed = query_pos_head(ref_points_detach).clamp(min=-10, max=10)
+        scqr_state = None
 
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
@@ -198,6 +204,21 @@ class TransformerDecoder(nn.Module):
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
 
+            if self.training and self.use_scqr and i == 0:
+                # Matching queries cannot attend to denoising queries in the native
+                # attention mask, so the training-only recollection route can safely
+                # retain only the matching-query block. Preserve the complete FDR
+                # state after L0; only references follow the native detach semantics.
+                main_start = dn_meta['dn_num_split'][0] if dn_meta is not None else 0
+                scqr_state = {
+                    'output': output[:, main_start:],
+                    'output_detach': output[:, main_start:].detach(),
+                    'pred_corners': pred_corners[:, main_start:],
+                    'ref_points': inter_ref_bbox[:, main_start:].detach(),
+                    'ref_points_initial': ref_points_initial[:, main_start:],
+                    'query_pos_embed': query_pos_embed[:, main_start:],
+                }
+
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
                 # Lqe does not affect the performance here.
@@ -214,8 +235,31 @@ class TransformerDecoder(nn.Module):
             ref_points_detach = inter_ref_bbox.detach()
             output_detach = output.detach()
 
+        scqr_output = None
+        if self.training and self.use_scqr:
+            assert scqr_state is not None
+            final_idx = self.eval_idx
+            scqr_hidden = self.layers[final_idx](
+                scqr_state['output'],
+                scqr_state['ref_points'].unsqueeze(2),
+                value,
+                spatial_shapes,
+                None,
+                scqr_state['query_pos_embed'])
+            scqr_corners = bbox_head[final_idx](
+                scqr_hidden + scqr_state['output_detach']) + scqr_state['pred_corners']
+            scqr_bboxes = distance2bbox(
+                scqr_state['ref_points_initial'], integral(scqr_corners, project), reg_scale)
+            scqr_logits = self.lqe_layers[final_idx](score_head[final_idx](scqr_hidden), scqr_corners)
+            scqr_output = {
+                'pred_logits': scqr_logits,
+                'pred_boxes': scqr_bboxes,
+                'pred_corners': scqr_corners,
+                'ref_points': scqr_state['ref_points_initial'],
+            }
+
         return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits), \
-               torch.stack(dec_out_pred_corners), torch.stack(dec_out_refs), pre_bboxes, pre_scores
+               torch.stack(dec_out_pred_corners), torch.stack(dec_out_refs), pre_bboxes, pre_scores, scqr_output
 
 
 @register()
@@ -252,6 +296,7 @@ class DEIMTransformer(nn.Module):
                  use_gateway=True,
                  share_bbox_head=False,
                  share_score_head=False,
+                 use_scqr=False,
                  ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -272,6 +317,7 @@ class DEIMTransformer(nn.Module):
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
         self.reg_max = reg_max
+        self.use_scqr = use_scqr
 
         assert query_select_method in ('default', 'one2many', 'agnostic'), ''
         assert cross_attn_method in ('default', 'discrete'), ''
@@ -281,6 +327,7 @@ class DEIMTransformer(nn.Module):
         print(f"     --- Use Gateway@{use_gateway} ---")
         print(f"     --- Use Share Bbox Head@{share_bbox_head} ---")
         print(f"     --- Use Share Score Head@{share_score_head} ---")
+        print(f"     --- Use SCQR@{use_scqr} ---")
 
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
@@ -293,7 +340,8 @@ class DEIMTransformer(nn.Module):
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale, use_gateway=use_gateway)
         self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
-                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale, act=activation)
+                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale,
+                                          act=activation, use_scqr=use_scqr)
       # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
@@ -544,7 +592,7 @@ class DEIMTransformer(nn.Module):
             self._get_decoder_input(memory, spatial_shapes, denoising_logits, denoising_bbox_unact)
 
         # decoder
-        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
+        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits, scqr_output = self.decoder(
             init_ref_contents,
             init_ref_points_unact,
             memory,
@@ -588,6 +636,9 @@ class DEIMTransformer(nn.Module):
                                                         dn_out_corners[-1], dn_out_logits[-1])
                 out['dn_pre_outputs'] = {'pred_logits': dn_pre_logits, 'pred_boxes': dn_pre_bboxes}
                 out['dn_meta'] = dn_meta
+
+            if scqr_output is not None:
+                out['scqr_outputs'] = scqr_output
 
         return out
 

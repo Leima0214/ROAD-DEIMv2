@@ -1,0 +1,17 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M1 is a matched 32-epoch causal screen, not a formal 160E result.
+# The normal main/aux/encoder/DN paths and their GO union remain unchanged.
+# A training-only, state-consistent L0 -> shared L2 recollection route receives
+# an independent Hungarian assignment and MAL/L1/GIoU/FGL losses at lambda=1.
+# Inference is exactly the frozen B0 graph.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_m1_scqr_32e
+
+DEIMTransformer:
+  use_scqr: True
+
+DEIMCriterion:
+  scqr_loss_weight: 1.0

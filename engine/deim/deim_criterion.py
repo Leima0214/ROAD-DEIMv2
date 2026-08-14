@@ -39,6 +39,7 @@ class DEIMCriterion(nn.Module):
         share_matched_indices=False,
         mal_alpha=None,
         use_uni_set=True,
+        scqr_loss_weight=1.0,
         ):
         """Create the criterion.
         Parameters:
@@ -64,6 +65,7 @@ class DEIMCriterion(nn.Module):
         self.num_pos, self.num_neg = None, None
         self.mal_alpha = mal_alpha
         self.use_uni_set = use_uni_set
+        self.scqr_loss_weight = float(scqr_loss_weight)
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -270,7 +272,10 @@ class DEIMCriterion(nn.Module):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
-        outputs_without_aux = {k: v for k, v in outputs.items() if 'aux' not in k}
+        outputs_without_aux = {
+            k: v for k, v in outputs.items()
+            if 'aux' not in k and k != 'scqr_outputs'
+        }
 
         # Retrieve the matching between the outputs of the last layer and the targets
         indices = self.matcher(outputs_without_aux, targets, epoch=epoch)['indices']
@@ -401,6 +406,29 @@ class DEIMCriterion(nn.Module):
                     l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + '_dn_pre': v for k, v in l_dict.items()}
                     losses.update(l_dict)
+
+        # M1 SCQR is deliberately outside the Dense O2O / GO union. Its
+        # independent Hungarian assignment cannot modify any B0 loss above.
+        if 'scqr_outputs' in outputs:
+            scqr_outputs = outputs['scqr_outputs']
+            scqr_outputs['up'] = outputs['up']
+            scqr_outputs['reg_scale'] = outputs['reg_scale']
+            indices_scqr = self.matcher(scqr_outputs, targets, epoch=epoch)['indices']
+
+            # Native decoder auxiliaries share a GO assignment and can reuse the
+            # cached FGL targets. SCQR has an independent assignment, so it must
+            # build its own targets after all original B0 losses are complete.
+            self.fgl_targets = None
+            for loss in self.losses:
+                if loss not in ('mal', 'boxes', 'local'):
+                    continue
+                meta = self.get_loss_meta_info(loss, scqr_outputs, targets, indices_scqr)
+                l_dict = self.get_loss(loss, scqr_outputs, targets, indices_scqr, num_boxes, **meta)
+                l_dict = {
+                    key: value * self.weight_dict[key] * self.scqr_loss_weight
+                    for key, value in l_dict.items() if key in self.weight_dict
+                }
+                losses.update({key + '_scqr': value for key, value in l_dict.items()})
 
         # For debugging Objects365 pre-train.
         losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}
