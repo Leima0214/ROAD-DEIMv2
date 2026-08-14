@@ -261,18 +261,18 @@ class TransformerDecoder(nn.Module):
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
 
             need_ease_relation = self.use_ease_l2 and i == self.eval_idx - 1
-            if self.training or i == self.eval_idx or need_ease_relation:
-                # M2 needs a confidence estimate for the L1 state at inference.
-                # Use the final scoring interface here so deploy() can retain the
-                # native B0 final heads only; earlier heads/LQEs are deliberately
-                # replaced by Identity in the stock deployment path.
-                relation_head_idx = self.eval_idx if need_ease_relation else i
-                scores = score_head[relation_head_idx](output)
+            if self.training or i == self.eval_idx:
+                scores = score_head[i](output)
                 # Lqe does not affect the performance here.
-                scores = self.lqe_layers[relation_head_idx](scores, pred_corners)
+                scores = self.lqe_layers[i](scores, pred_corners)
 
             if need_ease_relation:
-                ease_scores, ease_boxes = scores, inter_ref_bbox
+                # This read-only confidence route must not replace the native L1
+                # auxiliary logits. Using the final scoring interface also keeps
+                # deploy() compatible with B0's removal of earlier heads/LQEs.
+                relation_scores = score_head[self.eval_idx](output)
+                relation_scores = self.lqe_layers[self.eval_idx](relation_scores, pred_corners)
+                ease_scores, ease_boxes = relation_scores, inter_ref_bbox
 
             if self.training or i == self.eval_idx:
                 dec_out_logits.append(scores)
