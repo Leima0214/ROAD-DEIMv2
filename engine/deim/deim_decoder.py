@@ -117,7 +117,8 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
-                 eval_idx=-1, layer_scale=2, act='relu', use_ease_l2=False):
+                 eval_idx=-1, layer_scale=2, act='relu', use_ease_l2=False,
+                 ease_log_bias_cap=None):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -125,18 +126,24 @@ class TransformerDecoder(nn.Module):
         self.num_head = num_head
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
         self.use_ease_l2 = use_ease_l2
+        self.ease_log_bias_cap = (
+            None if ease_log_bias_cap is None else float(ease_log_bias_cap)
+        )
+        if self.ease_log_bias_cap is not None:
+            assert use_ease_l2, "A bounded EASE bias requires use_ease_l2=True"
+            assert self.ease_log_bias_cap > 0.0, "ease_log_bias_cap must be positive"
         if use_ease_l2:
-            assert num_layers == 3, "M2 EASE-L2 is defined only for the three-layer DEIMv2-N decoder"
-            assert self.eval_idx == num_layers - 1, "M2 EASE-L2 must modulate the final decoder layer"
-            assert layer_scale == 1, "M2 EASE-L2 does not support wide decoder layers"
+            assert num_layers == 3, "EASE-L2 is defined only for the three-layer DEIMv2-N decoder"
+            assert self.eval_idx == num_layers - 1, "EASE-L2 must modulate the final decoder layer"
+            assert layer_scale == 1, "EASE-L2 does not support wide decoder layers"
             rng_state = torch.random.get_rng_state()
             self.ease_relation_mlp = nn.Sequential(
                 nn.Linear(1, 16),
                 nn.ReLU(inplace=True),
                 nn.Linear(16, num_head),
             )
-            # sigmoid(0) * 2 == 1, hence log-decay is exactly zero and
-            # the pretrained B0 attention is unchanged at initialization.
+            # Both the original M2 mapping and the bounded M3-A mapping send a
+            # zero raw output to zero log-bias, preserving B0 at initialization.
             nn.init.zeros_(self.ease_relation_mlp[-1].weight)
             nn.init.zeros_(self.ease_relation_mlp[-1].bias)
             # The official four-class heads are randomly initialized after the
@@ -158,6 +165,14 @@ class TransformerDecoder(nn.Module):
         union = area[:, :, None] + area[:, None, :] - intersection
         return intersection / union.clamp(min=1e-6)
 
+    def _relation_to_log_bias(self, relation):
+        raw_bias = self.ease_relation_mlp(relation.unsqueeze(-1))
+        if self.ease_log_bias_cap is not None:
+            return self.ease_log_bias_cap * torch.tanh(raw_bias)
+
+        decay = 2.0 * torch.sigmoid(raw_bias)
+        return decay.clamp(min=1e-4, max=2.0).log()
+
     def _build_ease_l2_mask(self, scores, boxes, native_mask, dn_meta, dtype):
         batch_size, total_queries = scores.shape[:2]
         main_start = dn_meta['dn_num_split'][0] if dn_meta is not None else 0
@@ -171,8 +186,7 @@ class TransformerDecoder(nn.Module):
             -torch.ones((), device=scores.device, dtype=dtype),
         )
         relation = rank * self._pairwise_iou_cxcywh(main_boxes).to(dtype)
-        decay = 2.0 * torch.sigmoid(self.ease_relation_mlp(relation.unsqueeze(-1)))
-        log_decay = decay.clamp(min=1e-4, max=2.0).log().permute(0, 3, 1, 2)
+        log_decay = self._relation_to_log_bias(relation).permute(0, 3, 1, 2)
 
         attention_bias = scores.new_zeros(
             (batch_size, self.num_head, total_queries, total_queries), dtype=dtype)
@@ -335,6 +349,7 @@ class DEIMTransformer(nn.Module):
                  share_bbox_head=False,
                  share_score_head=False,
                  use_ease_l2=False,
+                 ease_log_bias_cap=None,
                  ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -356,6 +371,7 @@ class DEIMTransformer(nn.Module):
         self.aux_loss = aux_loss
         self.reg_max = reg_max
         self.use_ease_l2 = use_ease_l2
+        self.ease_log_bias_cap = ease_log_bias_cap
 
         assert query_select_method in ('default', 'one2many', 'agnostic'), ''
         assert cross_attn_method in ('default', 'discrete'), ''
@@ -366,6 +382,7 @@ class DEIMTransformer(nn.Module):
         print(f"     --- Use Share Bbox Head@{share_bbox_head} ---")
         print(f"     --- Use Share Score Head@{share_score_head} ---")
         print(f"     --- Use EASE-L2@{use_ease_l2} ---")
+        print(f"     --- EASE Log-Bias Cap@{ease_log_bias_cap} ---")
 
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
@@ -379,7 +396,8 @@ class DEIMTransformer(nn.Module):
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale, use_gateway=use_gateway)
         self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
                                           reg_max, self.reg_scale, self.up, eval_idx, layer_scale,
-                                          act=activation, use_ease_l2=use_ease_l2)
+                                          act=activation, use_ease_l2=use_ease_l2,
+                                          ease_log_bias_cap=ease_log_bias_cap)
       # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
