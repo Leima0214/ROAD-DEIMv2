@@ -113,10 +113,22 @@ def box_iou_aligned(lhs: torch.Tensor, rhs: torch.Tensor) -> torch.Tensor:
 
 
 def gt_scale(target: dict[str, torch.Tensor], target_index: int) -> str:
-    box = target["boxes"][target_index]
-    size = target["orig_size"]
-    area = float((box[2] * size[1]) * (box[3] * size[0]))
+    # Val keeps COCO's original-pixel area even though its boxes are resized
+    # absolute xyxy coordinates for evaluation.
+    area = float(target["area"][target_index])
     return "small" if area < 32**2 else ("medium" if area < 96**2 else "large")
+
+
+def matcher_targets(targets: list[dict[str, torch.Tensor]], samples: torch.Tensor) -> list[dict[str, torch.Tensor]]:
+    """Convert Val absolute xyxy boxes to the criterion's normalized cxcywh contract."""
+    height, width = samples.shape[-2:]
+    scale = samples.new_tensor([width, height, width, height])
+    converted = []
+    for target in targets:
+        item = dict(target)
+        item["boxes"] = torchvision.ops.box_convert(target["boxes"], "xyxy", "cxcywh") / scale
+        converted.append(item)
+    return converted
 
 
 def bootstrap_image_ci(rows: list[dict[str, Any]], iterations: int, seed: int) -> list[float | None]:
@@ -278,17 +290,19 @@ def main() -> None:
                     for target, result in zip(targets, results)
                 })
 
-            pre_match = solver.criterion.matcher(route_outputs["none"], targets, epoch=args.epoch)["indices"]
+            normalized_targets = matcher_targets(targets, samples.tensors if hasattr(samples, "tensors") else samples)
+            pre_match = solver.criterion.matcher(
+                route_outputs["none"], normalized_targets, epoch=args.epoch)["indices"]
             for image_index, (query_indices, target_indices) in enumerate(pre_match):
                 if not len(query_indices):
                     continue
                 pre_iou = box_iou_aligned(
                     route_outputs["none"]["pred_boxes"][image_index, query_indices],
-                    targets[image_index]["boxes"][target_indices],
+                    normalized_targets[image_index]["boxes"][target_indices],
                 )
                 post_iou = box_iou_aligned(
                     route_outputs["all"]["pred_boxes"][image_index, query_indices],
-                    targets[image_index]["boxes"][target_indices],
+                    normalized_targets[image_index]["boxes"][target_indices],
                 )
                 for offset, (query_index, target_index) in enumerate(zip(query_indices, target_indices)):
                     box = pre_box[image_index, query_index]
@@ -332,7 +346,7 @@ def main() -> None:
 
     def retention(route: dict[str, float], metric: str) -> float | None:
         denominator = all_metrics[metric] - none_metrics[metric]
-        return (route[metric] - none_metrics[metric]) / denominator if abs(denominator) > 1e-12 else None
+        return (route[metric] - none_metrics[metric]) / denominator if denominator > 1e-12 else None
 
     def recovery(route: dict[str, float], metric: str) -> float | None:
         harm = none_metrics[metric] - all_metrics[metric]
