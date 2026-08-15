@@ -1,0 +1,31 @@
+__include__: [
+  'deimv2_dinov3_s_coco.yml',
+  '../dataset/japan4_detection.yml'
+]
+
+# Official DEIMv2-S (DINOv3-distilled ViT-Tiny) on the frozen Japan4
+# train/val protocol. Model, optimizer, losses, augmentation operators,
+# resolution and total batch size inherit the official S configuration.
+output_dir: ./outputs/formal_deimv2_s_japan4_160e_seed42_20260815
+
+# Match the frozen DEIMv2-N B0 total budget. The official S recipe is 132E
+# (120E augmented + 12E no-aug); extend its phase boundaries coherently to
+# 160E (148E augmented + 12E no-aug) following the upstream schedule rule.
+epoches: 160
+flat_epoch: 78
+no_aug_epoch: 12
+
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: [4, 78, 148]
+
+  collate_fn:
+    mixup_epochs: [4, 78]
+    stop_epoch: 148
+    copyblend_epochs: [4, 148]
+
+DEIMCriterion:
+  matcher:
+    matcher_change_epoch: 133
