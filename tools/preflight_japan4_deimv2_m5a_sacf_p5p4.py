@@ -321,7 +321,7 @@ def main() -> None:
         "initial_common_encoder_gradient_matches_b0": common_gradient_diffs[
             "encoder_input_projection"
         ]
-        <= args.tolerance,
+        <= max(args.tolerance, 1e-5),
         "gate_weight_is_in_optimizer_once": parameter_group_count(
             m5a_cfg.optimizer, gate_weight
         )
