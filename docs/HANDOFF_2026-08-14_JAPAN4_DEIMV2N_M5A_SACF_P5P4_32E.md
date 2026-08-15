@@ -15,19 +15,19 @@ DySample. It asks a different, falsifiable question:
 
 - Parent: frozen Japan4 DEIMv2-N B0 commit
   `4e4fc4e3c253adb9198aa9d6ed51a20116937cfc`.
-- Single model intervention: replace only the existing P5/P4 top-down concat
+- Single model intervention: replace only the existing P5/P4 top-down sum
   policy with Spatially Adaptive Competitive Fusion (SACF).
 - P5 still uses the original nearest-neighbor 2x interpolation.
 - Given upsampled P5 `U` and P4 `L`, SACF is:
 
   ```text
   [g5, g4] = softmax(Conv1x1(concat(U, L)), scale_dimension)
-  output = concat(2 * g5 * U, 2 * g4 * L)
+  output = 2 * g5 * U + 2 * g4 * L
   ```
 
 - The `256 -> 2` gate weight and bias are both initialized to exactly zero.
   Therefore `g5 = g4 = 0.5`, and the initial function is exactly the B0
-  `concat(U, L)` function.
+  `U + L` function.
 - Expected parameter delta: `514`; all B0-common checkpoint tensors must be
   bit-identical after checkpoint loading.
 - DySample, CARAFE, P3, fusion-block replacement, PAN, backbone, decoder, FDR,
@@ -64,7 +64,7 @@ The preflight checks:
 
 - the M5-A YAML contains only the registered include, 32E/output, and SACF
   override;
-- the instantiated model is the actual two-level `[16, 32]`, concat-mode
+- the instantiated model is the actual two-level `[16, 32]`, sum-mode
   `HybridEncoder`;
 - only the `2 x 256 x 1 x 1` gate weight and two-element bias are added;
 - parameter and deployed-parameter deltas are exactly `514`;

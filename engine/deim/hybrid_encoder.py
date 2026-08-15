@@ -120,9 +120,7 @@ class SpatialAdaptiveCompetitiveFusion(nn.Module):
 
         weights = self.gate(torch.concat([high, low], dim=1)).softmax(dim=1)
         high_weight, low_weight = weights.chunk(2, dim=1)
-        return torch.concat(
-            [2.0 * high_weight * high, 2.0 * low_weight * low], dim=1
-        )
+        return 2.0 * high_weight * high + 2.0 * low_weight * low
 
 
 # self.cv1 = Conv(c1, c2, 1, 1)
@@ -400,8 +398,8 @@ class HybridEncoder(nn.Module):
         if self.use_sacf_p5p4:
             assert list(feat_strides) == [16, 32], \
                 "M5-A SACF is defined only for the two-level P5-to-P4 fusion"
-            assert self.fuse_op == 'cat', \
-                "M5-A SACF preserves the B0 concat contract and requires fuse_op=cat"
+            assert self.fuse_op == 'sum', \
+                "M5-A SACF preserves the B0 sum contract and requires fuse_op=sum"
 
         # channel projection
         self.input_proj = nn.ModuleList()

@@ -4,7 +4,7 @@ __include__: [
 
 # M5-A is a matched 32-epoch causal screen, not a formal long run.
 # The sole model intervention is identity-initialized spatially adaptive
-# competition at the existing P5-to-P4 concat. Nearest upsampling is retained.
+# competition at the existing P5-to-P4 sum. Nearest upsampling is retained.
 epoches: 32
 output_dir: ./outputs/deimv2_hgnetv2_n_japan4_m5a_sacf_p5p4_32e
 

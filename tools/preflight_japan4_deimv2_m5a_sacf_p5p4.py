@@ -157,7 +157,7 @@ def main() -> None:
         probe_logits = fusion.gate(torch.concat([probe_high, probe_low], dim=1))
         probe_weights = probe_logits.softmax(dim=1)
         probe_output = fusion(probe_high, probe_low)
-        probe_reference = torch.concat([probe_high, probe_low], dim=1)
+        probe_reference = probe_high + probe_low
     probe_diff = max_tensor_diff(probe_output, probe_reference)
     gate_half_diff = float((probe_weights - 0.5).abs().max().item())
 
@@ -272,7 +272,7 @@ def main() -> None:
         len(route_calls) == 1
         and route_calls[0]["high"] == route_calls[0]["low"]
         and route_calls[0]["high"][1] == 128
-        and route_calls[0]["output"][1] == 256
+        and route_calls[0]["output"][1] == 128
         and route_calls[0]["output"][2:] == route_calls[0]["high"][2:]
     )
     checks = {
@@ -283,9 +283,9 @@ def main() -> None:
             not base_model.encoder.use_sacf_p5p4
             and m5a_model.encoder.use_sacf_p5p4
         ),
-        "two_level_p5_p4_concat_contract": (
+        "two_level_p5_p4_sum_contract": (
             list(m5a_model.encoder.feat_strides) == [16, 32]
-            and m5a_model.encoder.fuse_op == "cat"
+            and m5a_model.encoder.fuse_op == "sum"
         ),
         "only_expected_state_keys_added": extra_keys == EXPECTED_EXTRA_KEYS
         and not missing_keys,
@@ -296,7 +296,7 @@ def main() -> None:
         == 0,
         "gate_bias_is_zero_initialized": torch.count_nonzero(gate_bias).item() == 0,
         "standalone_gate_is_exactly_half": gate_half_diff == 0.0,
-        "standalone_fusion_is_exact_b0_concat": probe_diff == 0.0,
+        "standalone_fusion_is_exact_b0_sum": probe_diff == 0.0,
         "actual_model_route_called_once_with_expected_shapes": route_shape_valid,
         "initial_eval_output_structure_identical": set(base_eval) == set(m5a_eval),
         "initial_eval_output_matches_b0": eval_diff <= args.tolerance,
@@ -351,7 +351,7 @@ def main() -> None:
             "batch_size": args.batch_size,
         },
         "implementation": {
-            "route": "P5/P4 concat -> identity-initialized spatial competition",
+            "route": "P5/P4 sum -> identity-initialized spatial competition",
             "nearest_upsampling_retained": True,
             "scale_softmax": True,
             "initial_scale_multiplier": 1.0,
@@ -365,7 +365,7 @@ def main() -> None:
             "gate_weight_max_abs": float(gate_weight.detach().abs().max().item()),
             "gate_bias_max_abs": float(gate_bias.detach().abs().max().item()),
             "gate_half_max_abs_diff": gate_half_diff,
-            "standalone_vs_concat_max_abs_diff": probe_diff,
+            "standalone_vs_sum_max_abs_diff": probe_diff,
         },
         "forward_differences": {
             "eval_max_abs_diff": eval_diff,
