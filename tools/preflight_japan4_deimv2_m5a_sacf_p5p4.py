@@ -323,11 +323,11 @@ def main() -> None:
         ]
         <= args.tolerance,
         "gate_weight_is_in_optimizer_once": parameter_group_count(
-            m5a_solver.optimizer, gate_weight
+            m5a_cfg.optimizer, gate_weight
         )
         == 1,
         "gate_bias_is_in_optimizer_once": parameter_group_count(
-            m5a_solver.optimizer, gate_bias
+            m5a_cfg.optimizer, gate_bias
         )
         == 1,
         "amp_losses_finite": amp_losses_finite,
