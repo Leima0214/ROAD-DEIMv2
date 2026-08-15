@@ -1,0 +1,12 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M6-A is a matched 32-epoch causal screen, not a formal long run.
+# The sole intervention is unit-mean geometry-sensitive L/T/R/B weighting
+# inside FGL. Model, matcher, DDF, optimizer, augmentation and schedule remain B0.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_m6a_gs_fgl_32e
+
+DEIMCriterion:
+  use_geometry_sensitive_fgl: True

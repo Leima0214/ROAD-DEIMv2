@@ -39,6 +39,7 @@ class DEIMCriterion(nn.Module):
         share_matched_indices=False,
         mal_alpha=None,
         use_uni_set=True,
+        use_geometry_sensitive_fgl=False,
         ):
         """Create the criterion.
         Parameters:
@@ -64,6 +65,25 @@ class DEIMCriterion(nn.Module):
         self.num_pos, self.num_neg = None, None
         self.mal_alpha = mal_alpha
         self.use_uni_set = use_uni_set
+        self.use_geometry_sensitive_fgl = use_geometry_sensitive_fgl
+
+    @staticmethod
+    def geometry_sensitive_side_weights(target_boxes):
+        """Return unit-mean first-order IoU sensitivity for L/T/R/B sides.
+
+        For a fixed absolute boundary displacement, the first-order IoU
+        sensitivity is inversely proportional to the box extent perpendicular
+        to that side. Normalizing each box's four weights to mean one preserves
+        the original aggregate FGL loss scale.
+        """
+        widths = target_boxes[:, 2].float().clamp_min(1e-6)
+        heights = target_boxes[:, 3].float().clamp_min(1e-6)
+        inv_width = widths.reciprocal()
+        inv_height = heights.reciprocal()
+        sensitivity = torch.stack(
+            (inv_width, inv_height, inv_width, inv_height), dim=-1
+        )
+        return sensitivity / sensitivity.mean(dim=-1, keepdim=True)
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -185,7 +205,11 @@ class DEIMCriterion(nn.Module):
 
             ious = torch.diag(box_iou(\
                         box_cxcywh_to_xyxy(outputs['pred_boxes'][idx]), box_cxcywh_to_xyxy(target_boxes))[0])
-            weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
+            if self.use_geometry_sensitive_fgl:
+                side_weights = self.geometry_sensitive_side_weights(target_boxes)
+                weight_targets = (ious.unsqueeze(-1) * side_weights).reshape(-1).detach()
+            else:
+                weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
 
             losses['loss_fgl'] = self.unimodal_distribution_focal_loss(
                 pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
