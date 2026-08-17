@@ -173,12 +173,12 @@ def main() -> None:
     )
 
     boxes_cxcywh = torch.tensor(
-        [[0.50, 0.50, 0.04, 0.04], [0.50, 0.50, 0.10, 0.10]],
+        [[0.50, 0.50, 0.04, 0.04], [0.465, 0.535, 0.31, 0.49]],
         device=device,
     )
     active_mask = m9b_solver.criterion.boundary_interval_active_mask(boxes_cxcywh)
     ref_points = torch.tensor(
-        [[0.50, 0.50, 0.08, 0.08], [0.50, 0.50, 0.20, 0.20]],
+        [[0.50, 0.50, 0.08, 0.08], [0.45, 0.55, 0.20, 0.35]],
         device=device,
     )
     boxes_xyxy = box_cxcywh_to_xyxy(boxes_cxcywh)
