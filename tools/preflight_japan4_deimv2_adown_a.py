@@ -64,6 +64,11 @@ def all_finite(values) -> bool:
     return all(torch.isfinite(value).all().item() for value in values)
 
 
+def deployment_output(output: dict[str, Any]) -> dict[str, torch.Tensor]:
+    """Return only tensors that define the deployed detector prediction."""
+    return {key: output[key] for key in ("pred_logits", "pred_boxes")}
+
+
 def build_solver(config: Path, checkpoint: Path, device: str, batch_size: int, runtime: Path):
     seed_all(42)
     cfg = YAMLConfig(
@@ -195,7 +200,9 @@ def main() -> None:
                 base_eval = base_model(samples)
                 adown_eval = adown_model(samples)
             downsample_eval_diff = max_tensor_diff(base_capture["output"], adown_capture["output"])
-            eval_diff = max_tensor_diff(base_eval, adown_eval)
+            eval_diff = max_tensor_diff(
+                deployment_output(base_eval), deployment_output(adown_eval)
+            )
         finally:
             base_handle.remove()
             adown_handle.remove()
@@ -206,7 +213,9 @@ def main() -> None:
         base_train = base_model(samples, targets)
         seed_all(123)
         adown_train = adown_model(samples, targets)
-        train_output_diff = max_tensor_diff(base_train, adown_train)
+        train_output_diff = max_tensor_diff(
+            deployment_output(base_train), deployment_output(adown_train)
+        )
         base_losses = base_solver.criterion(base_train, targets, epoch=0)
         adown_losses = adown_solver.criterion(adown_train, targets, epoch=0)
         loss_keys_match = set(base_losses) == set(adown_losses)
