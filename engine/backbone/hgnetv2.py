@@ -120,6 +120,9 @@ class AdaptiveDownsample(ConvBNAct):
             use_lab=False,
             act=act,
         )
+        # Do not shift the B0 RNG stream: this zero-initialized experimental
+        # branch must not alter later Japan4-specific head initialization.
+        rng_state = torch.get_rng_state()
         self.offset = nn.Conv2d(
             channels,
             18,
@@ -128,6 +131,7 @@ class AdaptiveDownsample(ConvBNAct):
             padding=1,
             bias=True,
         )
+        torch.set_rng_state(rng_state)
         nn.init.zeros_(self.offset.weight)
         nn.init.zeros_(self.offset.bias)
 
