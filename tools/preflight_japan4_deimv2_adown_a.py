@@ -223,6 +223,8 @@ def main() -> None:
         train_output_diff = max_tensor_diff(
             deployment_output(base_train), deployment_output(adown_train)
         )
+        eval_output_shapes_match = deployment_shapes_match(base_eval, adown_eval)
+        train_output_shapes_match = deployment_shapes_match(base_train, adown_train)
         base_losses = base_solver.criterion(base_train, targets, epoch=0)
         adown_losses = adown_solver.criterion(adown_train, targets, epoch=0)
         loss_keys_match = set(base_losses) == set(adown_losses)
@@ -282,12 +284,8 @@ def main() -> None:
             # few-ULP feature difference.  Detection outputs are a set, so
             # retain the raw elementwise diff for audit but do not use query
             # order as an identity gate.
-            "eval_deployment_output_shapes_identical": deployment_shapes_match(
-                base_eval, adown_eval
-            ),
-            "train_deployment_output_shapes_identical": deployment_shapes_match(
-                base_train, adown_train
-            ),
+            "eval_deployment_output_shapes_identical": eval_output_shapes_match,
+            "train_deployment_output_shapes_identical": train_output_shapes_match,
             "loss_keys_identical": loss_keys_match,
             "initial_loss_values_numerically_b0": max_loss_diff <= args.loss_tolerance,
             "fp32_losses_finite": fp32_losses_finite,
