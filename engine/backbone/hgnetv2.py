@@ -13,6 +13,7 @@ Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.ops import deform_conv2d
 import os
 from .common import FrozenBatchNorm2d
 from ..core import register
@@ -92,6 +93,56 @@ class ConvBNAct(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
+        x = self.bn(x)
+        x = self.act(x)
+        x = self.lab(x)
+        return x
+
+
+class AdaptiveDownsample(ConvBNAct):
+    """B0-preserving depthwise stride-2 downsampling with shared offsets.
+
+    The original depthwise 3x3 weight and BatchNorm keep their state-dict
+    names (``conv`` and ``bn``).  Only a single 18-channel offset field is
+    added and shared by every depthwise channel.  Zero initialization makes
+    the module numerically equivalent to the original downsampler before
+    training, up to the deformable-convolution kernel's floating-point error.
+    """
+
+    def __init__(self, channels, act='relu'):
+        super().__init__(
+            channels,
+            channels,
+            kernel_size=3,
+            stride=2,
+            groups=channels,
+            use_act=False,
+            use_lab=False,
+            act=act,
+        )
+        self.offset = nn.Conv2d(
+            channels,
+            18,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            bias=True,
+        )
+        nn.init.zeros_(self.offset.weight)
+        nn.init.zeros_(self.offset.bias)
+
+    def forward(self, x):
+        offset = self.offset(x)
+        x = deform_conv2d(
+            x,
+            offset,
+            self.conv.weight,
+            bias=None,
+            stride=self.conv.stride,
+            padding=self.conv.padding,
+            dilation=self.conv.dilation,
+            mask=None,
+        )
         x = self.bn(x)
         x = self.act(x)
         x = self.lab(x)
@@ -322,20 +373,24 @@ class HG_Stage(nn.Module):
             agg='se',
             drop_path=0.,
             act='relu',
+            adaptive_downsample=False,
     ):
         super().__init__()
         self.downsample = downsample
         if downsample:
-            self.downsample = ConvBNAct(
-                in_chs,
-                in_chs,
-                kernel_size=3,
-                stride=2,
-                groups=in_chs,
-                use_act=False,
-                use_lab=use_lab,
-                act=act,
-            )
+            if adaptive_downsample:
+                self.downsample = AdaptiveDownsample(in_chs, act=act)
+            else:
+                self.downsample = ConvBNAct(
+                    in_chs,
+                    in_chs,
+                    kernel_size=3,
+                    stride=2,
+                    groups=in_chs,
+                    use_act=False,
+                    use_lab=use_lab,
+                    act=act,
+                )
         else:
             self.downsample = nn.Identity()
 
@@ -498,6 +553,7 @@ class HGNetv2(nn.Module):
                  pretrained=True,
                  local_model_dir='weight/hgnetv2/',
                  act='relu',
+                 adaptive_downsample_stage=-1,
                  ):
         super().__init__()
         self.use_lab = use_lab
@@ -535,7 +591,8 @@ class HGNetv2(nn.Module):
                     light_block,
                     kernel_size,
                     use_lab,
-                    act=act)
+                    act=act,
+                    adaptive_downsample=(i == adaptive_downsample_stage))
             )
 
         if freeze_at >= 0:

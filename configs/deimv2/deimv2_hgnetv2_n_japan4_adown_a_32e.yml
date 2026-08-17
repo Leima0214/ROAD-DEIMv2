@@ -1,0 +1,14 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# ADown-A is a matched 32-epoch causal screen, not a formal 160E result.
+# It changes only HGNetv2-B0 stage3's stride8->16 downsampler: the original
+# depthwise 3x3 weight and BN are retained while one shared, zero-initialized
+# 9-point offset field is learned. Decoder, encoder, FDR, LQE, matcher, losses,
+# data, augmentation, optimizer and schedule remain inherited from B0.
+epoches: 32
+output_dir: ./outputs/deimv2_hgnetv2_n_japan4_adown_a_32e
+
+HGNetv2:
+  adaptive_downsample_stage: 2
