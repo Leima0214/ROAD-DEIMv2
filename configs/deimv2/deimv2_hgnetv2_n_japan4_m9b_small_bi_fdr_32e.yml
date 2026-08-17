@@ -1,0 +1,14 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M9-B keeps M9-A's fixed +/-1 px triangular BI-FDR target, but applies it
+# only when the augmented normalized box footprint is below (32/640)^2.
+# This is training-scale small routing, not COCO evaluator area routing.
+epoches: 32
+output_dir: ./outputs/deimv2_n_japan4_m9b_small_bi_fdr_32e_seed42_20260817
+
+DEIMCriterion:
+  use_boundary_interval_fdr: True
+  boundary_interval_epsilon: 0.0015625
+  boundary_interval_small_area_threshold: 0.0025

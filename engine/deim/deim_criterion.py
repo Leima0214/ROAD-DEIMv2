@@ -41,6 +41,7 @@ class DEIMCriterion(nn.Module):
         use_uni_set=True,
         use_boundary_interval_fdr=False,
         boundary_interval_epsilon=0.0015625,
+        boundary_interval_small_area_threshold=None,
         ):
         """Create the criterion.
         Parameters:
@@ -68,6 +69,18 @@ class DEIMCriterion(nn.Module):
         self.use_uni_set = use_uni_set
         self.use_boundary_interval_fdr = use_boundary_interval_fdr
         self.boundary_interval_epsilon = boundary_interval_epsilon
+        self.boundary_interval_small_area_threshold = (
+            boundary_interval_small_area_threshold
+        )
+
+    def boundary_interval_active_mask(self, target_boxes):
+        """Select training-scale small boxes, or all boxes when ungated."""
+        if self.boundary_interval_small_area_threshold is None:
+            return None
+        return (
+            target_boxes[:, 2] * target_boxes[:, 3]
+            < self.boundary_interval_small_area_threshold
+        )
 
     def _two_bin_target_distribution(self, labels, weight_right, weight_left):
         """Expand the native two-bin FDR target into a dense distribution."""
@@ -78,7 +91,8 @@ class DEIMCriterion(nn.Module):
         return dense
 
     def boundary_interval_fdr_targets(
-        self, ref_points, target_boxes_xyxy, reg_scale, up, epsilon=None
+        self, ref_points, target_boxes_xyxy, reg_scale, up, epsilon=None,
+        active_box_mask=None,
     ):
         """Create a fixed one-pixel triangular interval target per box side.
 
@@ -126,6 +140,9 @@ class DEIMCriterion(nn.Module):
 
         dense = 0.5 * center_dense
         dense = dense + 0.25 * endpoint_dense[0] + 0.25 * endpoint_dense[1]
+        if active_box_mask is not None:
+            side_mask = active_box_mask[:, None].expand(-1, 4).reshape(-1, 1)
+            dense = torch.where(side_mask, dense, center_dense)
         return center, dense.detach()
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
@@ -242,7 +259,9 @@ class DEIMCriterion(nn.Module):
                         self.fgl_targets_dn = (
                             self.boundary_interval_fdr_targets(
                                 ref_points, target_boxes_xyxy,
-                                outputs['reg_scale'], outputs['up'])
+                                outputs['reg_scale'], outputs['up'],
+                                active_box_mask=self.boundary_interval_active_mask(
+                                    target_boxes))
                             if self.use_boundary_interval_fdr else
                             bbox2distance(ref_points, target_boxes_xyxy,
                                           self.reg_max, outputs['reg_scale'], outputs['up'])
@@ -251,7 +270,9 @@ class DEIMCriterion(nn.Module):
                         self.fgl_targets = (
                             self.boundary_interval_fdr_targets(
                                 ref_points, target_boxes_xyxy,
-                                outputs['reg_scale'], outputs['up'])
+                                outputs['reg_scale'], outputs['up'],
+                                active_box_mask=self.boundary_interval_active_mask(
+                                    target_boxes))
                             if self.use_boundary_interval_fdr else
                             bbox2distance(ref_points, target_boxes_xyxy,
                                           self.reg_max, outputs['reg_scale'], outputs['up'])
