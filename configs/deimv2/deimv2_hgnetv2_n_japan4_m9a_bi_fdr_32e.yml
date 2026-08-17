@@ -1,0 +1,13 @@
+__include__: [
+  'deimv2_hgnetv2_n_japan4.yml'
+]
+
+# M9-A is a matched 32-epoch causal screen. The sole intervention replaces
+# each native two-bin FDR target with a fixed triangular boundary interval:
+# center=0.50, endpoints at +/-1/640=0.25 each.
+epoches: 32
+output_dir: ./outputs/deimv2_n_japan4_m9a_bi_fdr_32e_seed42_20260817
+
+DEIMCriterion:
+  use_boundary_interval_fdr: True
+  boundary_interval_epsilon: 0.0015625

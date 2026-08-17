@@ -39,6 +39,8 @@ class DEIMCriterion(nn.Module):
         share_matched_indices=False,
         mal_alpha=None,
         use_uni_set=True,
+        use_boundary_interval_fdr=False,
+        boundary_interval_epsilon=0.0015625,
         ):
         """Create the criterion.
         Parameters:
@@ -64,6 +66,67 @@ class DEIMCriterion(nn.Module):
         self.num_pos, self.num_neg = None, None
         self.mal_alpha = mal_alpha
         self.use_uni_set = use_uni_set
+        self.use_boundary_interval_fdr = use_boundary_interval_fdr
+        self.boundary_interval_epsilon = boundary_interval_epsilon
+
+    def _two_bin_target_distribution(self, labels, weight_right, weight_left):
+        """Expand the native two-bin FDR target into a dense distribution."""
+        labels = labels.long()
+        dense = weight_left.new_zeros((labels.numel(), self.reg_max + 1))
+        dense.scatter_add_(1, labels[:, None], weight_left.reshape(-1, 1))
+        dense.scatter_add_(1, (labels + 1)[:, None], weight_right.reshape(-1, 1))
+        return dense
+
+    def boundary_interval_fdr_targets(
+        self, ref_points, target_boxes_xyxy, reg_scale, up, epsilon=None
+    ):
+        """Create a fixed one-pixel triangular interval target per box side.
+
+        The center boundary carries 0.5 probability mass and the two endpoints
+        at +/- epsilon carry 0.25 each. Every continuous endpoint is projected
+        through DEIMv2's native non-uniform FDR bins.
+        """
+        epsilon = (
+            self.boundary_interval_epsilon if epsilon is None else float(epsilon)
+        )
+        center = bbox2distance(
+            ref_points, target_boxes_xyxy, self.reg_max, reg_scale, up
+        )
+        center_dense = self._two_bin_target_distribution(*center)
+        if epsilon == 0.0:
+            return center, center_dense
+
+        num_boxes = target_boxes_xyxy.shape[0]
+        side_index = torch.arange(4, device=target_boxes_xyxy.device)
+        endpoint_dense = []
+        for sign in (-1.0, 1.0):
+            boxes = target_boxes_xyxy[:, None, :].expand(-1, 4, -1).clone()
+            boxes[:, side_index, side_index] += sign * epsilon
+            boxes.clamp_(0.0, 1.0)
+            boxes[..., 0] = torch.minimum(
+                boxes[..., 0], boxes[..., 2] - 1e-6).clamp_(0.0, 1.0)
+            boxes[..., 1] = torch.minimum(
+                boxes[..., 1], boxes[..., 3] - 1e-6).clamp_(0.0, 1.0)
+            boxes[..., 2] = torch.maximum(
+                boxes[..., 2], boxes[..., 0] + 1e-6).clamp_(0.0, 1.0)
+            boxes[..., 3] = torch.maximum(
+                boxes[..., 3], boxes[..., 1] + 1e-6).clamp_(0.0, 1.0)
+            endpoint = bbox2distance(
+                ref_points.repeat_interleave(4, dim=0),
+                boxes.reshape(-1, 4),
+                self.reg_max,
+                reg_scale,
+                up,
+            )
+            endpoint = tuple(
+                value.reshape(num_boxes, 4, 4)[:, side_index, side_index].reshape(-1)
+                for value in endpoint
+            )
+            endpoint_dense.append(self._two_bin_target_distribution(*endpoint))
+
+        dense = 0.5 * center_dense
+        dense = dense + 0.25 * endpoint_dense[0] + 0.25 * endpoint_dense[1]
+        return center, dense.detach()
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -173,22 +236,44 @@ class DEIMCriterion(nn.Module):
 
             pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))
             ref_points = outputs['ref_points'][idx].detach()
+            target_boxes_xyxy = box_cxcywh_to_xyxy(target_boxes)
             with torch.no_grad():
                 if self.fgl_targets_dn is None and 'is_dn' in outputs:
-                        self.fgl_targets_dn= bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes),
-                                                        self.reg_max, outputs['reg_scale'], outputs['up'])
+                        self.fgl_targets_dn = (
+                            self.boundary_interval_fdr_targets(
+                                ref_points, target_boxes_xyxy,
+                                outputs['reg_scale'], outputs['up'])
+                            if self.use_boundary_interval_fdr else
+                            bbox2distance(ref_points, target_boxes_xyxy,
+                                          self.reg_max, outputs['reg_scale'], outputs['up'])
+                        )
                 if self.fgl_targets is None and 'is_dn' not in outputs:
-                        self.fgl_targets = bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes),
-                                                        self.reg_max, outputs['reg_scale'], outputs['up'])
+                        self.fgl_targets = (
+                            self.boundary_interval_fdr_targets(
+                                ref_points, target_boxes_xyxy,
+                                outputs['reg_scale'], outputs['up'])
+                            if self.use_boundary_interval_fdr else
+                            bbox2distance(ref_points, target_boxes_xyxy,
+                                          self.reg_max, outputs['reg_scale'], outputs['up'])
+                        )
 
-            target_corners, weight_right, weight_left = self.fgl_targets_dn if 'is_dn' in outputs else self.fgl_targets
+            fgl_targets = self.fgl_targets_dn if 'is_dn' in outputs else self.fgl_targets
+            if self.use_boundary_interval_fdr:
+                (target_corners, weight_right, weight_left), dense_targets = fgl_targets
+            else:
+                target_corners, weight_right, weight_left = fgl_targets
 
             ious = torch.diag(box_iou(\
                         box_cxcywh_to_xyxy(outputs['pred_boxes'][idx]), box_cxcywh_to_xyxy(target_boxes))[0])
             weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
 
-            losses['loss_fgl'] = self.unimodal_distribution_focal_loss(
-                pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
+            if self.use_boundary_interval_fdr:
+                losses['loss_fgl'] = self.dense_distribution_loss(
+                    pred_corners, dense_targets, weight_targets, avg_factor=num_boxes)
+            else:
+                losses['loss_fgl'] = self.unimodal_distribution_focal_loss(
+                    pred_corners, target_corners, weight_right, weight_left,
+                    weight_targets, avg_factor=num_boxes)
 
             if 'teacher_corners' in outputs:
                 pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))
@@ -468,6 +553,21 @@ class DEIMCriterion(nn.Module):
         if weight is not None:
             weight = weight.float()
             loss = loss * weight
+
+        if avg_factor is not None:
+            loss = loss.sum() / avg_factor
+        elif reduction == 'mean':
+            loss = loss.mean()
+        elif reduction == 'sum':
+            loss = loss.sum()
+
+        return loss
+
+    def dense_distribution_loss(self, pred, target, weight=None, reduction='sum', avg_factor=None):
+        loss = -(target * F.log_softmax(pred, dim=-1)).sum(dim=-1)
+
+        if weight is not None:
+            loss = loss * weight.float()
 
         if avg_factor is not None:
             loss = loss.sum() / avg_factor
