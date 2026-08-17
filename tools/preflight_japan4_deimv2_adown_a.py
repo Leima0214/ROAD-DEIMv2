@@ -79,6 +79,7 @@ def build_solver(config: Path, checkpoint: Path, device: str, batch_size: int, r
         cfg.yaml_cfg[loader_name]["num_workers"] = 0
     solver = TASKS[cfg.yaml_cfg["task"]](cfg)
     solver._setup()
+    solver.optimizer = cfg.optimizer
     return cfg, solver
 
 
